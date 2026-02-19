@@ -17,17 +17,21 @@ export async function renderPlansPage(container) {
       <p class="page-subtitle">Build and manage your workout plans</p>
     </div>
 
-    ${plans.length === 0 ? `
+    ${(() => {
+      const existingNames = plans.map(p => p.name);
+      const available = DEFAULT_PLANS.map((p, i) => ({ ...p, idx: i })).filter(p => !existingNames.includes(p.name));
+      if (available.length === 0) return '';
+      return `
       <div class="card" style="margin-bottom:var(--sp-4); background:var(--bg-elevated); border-color:var(--accent);">
         <div class="card-header">
-          <div class="card-title" style="color:var(--accent)">Get Started</div>
+          <div class="card-title" style="color:var(--accent)">${plans.length === 0 ? 'Get Started' : 'Add a Program'}</div>
         </div>
         <p class="text-sm text-secondary" style="margin-bottom:var(--sp-3)">
-          Choose a popular program template to begin, or create your own from scratch.
+          ${plans.length === 0 ? 'Choose a popular program template to begin, or create your own from scratch.' : 'Add another program template:'}
         </p>
         <div class="flex flex-col gap-2" id="template-buttons">
-          ${DEFAULT_PLANS.map((p, i) => `
-            <button class="btn btn-secondary btn-full" data-template="${i}" style="justify-content:flex-start; text-align:left;">
+          ${available.map(p => `
+            <button class="btn btn-secondary btn-full" data-template="${p.idx}" style="justify-content:flex-start; text-align:left;">
               <span>
                 <strong>${p.name}</strong>
                 <span class="text-xs text-muted" style="display:block">${p.schedule}</span>
@@ -35,8 +39,8 @@ export async function renderPlansPage(container) {
             </button>
           `).join('')}
         </div>
-      </div>
-    ` : ''}
+      </div>`;
+    })()}
 
     <div id="plans-list" class="flex flex-col gap-3">
       ${plans.map(plan => renderPlanCard(plan)).join('')}
