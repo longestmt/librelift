@@ -6,6 +6,7 @@ import { getSetting, setSetting } from '../data/db.js';
 import { exportData, importData } from '../data/io.js';
 import { showToast } from '../components/toast.js';
 import { STANDARD_PLATES_LB, STANDARD_PLATES_KG } from '../engine/progression.js';
+import { getGistToken, setGistToken, validateToken, pushBackup, pullBackup, restoreFromGist, getBackupInfo, disconnectGist } from '../data/gist-backup.js';
 
 export async function renderSettingsPage(container) {
   const unit = await getSetting('unit', 'lb');
@@ -92,6 +93,13 @@ export async function renderSettingsPage(container) {
         </div>
       </div>
 
+      <!-- GitHub Backup -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:var(--sp-2)">Cloud Backup</div>
+        <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">Sync your data to a private GitHub Gist</div>
+        <div id="gist-section"></div>
+      </div>
+
       <!-- About -->
       <div class="card">
         <div class="card-title" style="margin-bottom:var(--sp-2)">About</div>
@@ -164,4 +172,78 @@ export async function renderSettingsPage(container) {
     try { await importData(file, true); showToast('Data imported!', 'success'); window.dispatchEvent(new HashChangeEvent('hashchange')); }
     catch (e) { showToast('Import failed: ' + e.message, 'danger'); }
   });
+
+  // GitHub Gist Backup
+  const gistSection = container.querySelector('#gist-section');
+  async function renderGistUI() {
+    const token = await getGistToken();
+    if (!token) {
+      gistSection.innerHTML = `
+        <div class="flex flex-col gap-2">
+          <input class="input" type="password" id="gist-token" placeholder="Paste GitHub Personal Access Token" style="font-size:var(--text-sm)" />
+          <div class="text-xs text-muted">Create a token at <a href="https://github.com/settings/tokens/new?scopes=gist&description=LibreLift+Backup" target="_blank" style="color:var(--accent)">github.com/settings/tokens</a> with <strong>gist</strong> scope only.</div>
+          <button class="btn btn-primary btn-full btn-sm" id="gist-connect">Connect GitHub</button>
+        </div>`;
+      gistSection.querySelector('#gist-connect').addEventListener('click', async () => {
+        const tokenVal = gistSection.querySelector('#gist-token').value.trim();
+        if (!tokenVal) { showToast('Paste your token first', 'danger'); return; }
+        try {
+          const btn = gistSection.querySelector('#gist-connect');
+          btn.textContent = 'Connecting…'; btn.disabled = true;
+          const username = await validateToken(tokenVal);
+          await setGistToken(tokenVal);
+          showToast(`Connected as ${username}`, 'success');
+          renderGistUI();
+        } catch (e) {
+          showToast('Invalid token: ' + e.message, 'danger');
+          gistSection.querySelector('#gist-connect').textContent = 'Connect GitHub';
+          gistSection.querySelector('#gist-connect').disabled = false;
+        }
+      });
+    } else {
+      const info = await getBackupInfo();
+      const lastBackup = info ? new Date(info.updatedAt).toLocaleString() : 'Never';
+      gistSection.innerHTML = `
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm font-medium text-success">● Connected</div>
+              <div class="text-xs text-muted">Last backup: ${lastBackup}</div>
+            </div>
+            ${info ? `<a href="${info.url}" target="_blank" class="text-xs" style="color:var(--accent)">View Gist ↗</a>` : ''}
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary btn-sm" id="gist-push" style="flex:1">Push Backup</button>
+            <button class="btn btn-secondary btn-sm" id="gist-pull" style="flex:1">Restore from Cloud</button>
+          </div>
+          <button class="btn btn-ghost btn-sm text-xs" id="gist-disconnect" style="color:var(--danger)">Disconnect GitHub</button>
+        </div>`;
+      gistSection.querySelector('#gist-push').addEventListener('click', async () => {
+        try {
+          const btn = gistSection.querySelector('#gist-push');
+          btn.textContent = 'Pushing…'; btn.disabled = true;
+          const result = await pushBackup();
+          showToast(result.updated ? 'Backup updated!' : 'Backup created!', 'success');
+          renderGistUI();
+        } catch (e) { showToast('Backup failed: ' + e.message, 'danger'); renderGistUI(); }
+      });
+      gistSection.querySelector('#gist-pull').addEventListener('click', async () => {
+        if (!confirm('This will replace all local data with the cloud backup. Continue?')) return;
+        try {
+          const btn = gistSection.querySelector('#gist-pull');
+          btn.textContent = 'Restoring…'; btn.disabled = true;
+          await restoreFromGist();
+          showToast('Data restored from backup!', 'success');
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+        } catch (e) { showToast('Restore failed: ' + e.message, 'danger'); renderGistUI(); }
+      });
+      gistSection.querySelector('#gist-disconnect').addEventListener('click', async () => {
+        if (!confirm('Disconnect GitHub? Your backup gist will not be deleted.')) return;
+        await disconnectGist();
+        showToast('GitHub disconnected', 'info');
+        renderGistUI();
+      });
+    }
+  }
+  renderGistUI();
 }
