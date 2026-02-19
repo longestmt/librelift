@@ -1,0 +1,17 @@
+{
+  "name": "librelift",
+  "version": "0.1.0",
+  "description": "A libre, FLOSS lifting app — track workouts, progressive overload, and more.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.1.0",
+    "vite-plugin-pwa": "^0.21.1"
+  },
+  "license": "AGPL-3.0-or-later"
+}
