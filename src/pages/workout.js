@@ -113,12 +113,13 @@ function renderActiveWorkout(container, unit) {
     <div id="workout-exercises" class="flex flex-col gap-4"></div>
     <div style="margin-top:var(--sp-4)"><div class="input-group"><label class="input-label">Gym Notes</label>
       <textarea class="input" id="workout-notes" rows="2" placeholder="How's the session going?">${activeWorkout.notes}</textarea></div></div>
-    <div style="margin-top:var(--sp-4)"><button class="btn btn-secondary btn-full" id="add-exercise-btn">+ Add Exercise</button></div>
-    <div id="rest-timer-container" style="display:none;"></div>`;
+    <div style="margin-top:var(--sp-4)"><button class="btn btn-secondary btn-full" id="add-exercise-btn">+ Add Exercise</button></div>`;
 
     const exContainer = container.querySelector('#workout-exercises');
-    const timerContainer = container.querySelector('#rest-timer-container');
-    timerContainer.appendChild(createTimerElement());
+
+    // Timer bar appended to body so it's not trapped in a hidden container
+    const timerEl = createTimerElement();
+    document.body.appendChild(timerEl);
 
     // Workout clock with pause
     let clockPaused = false;
@@ -145,20 +146,20 @@ function renderActiveWorkout(container, unit) {
 
     container.querySelector('#workout-notes').addEventListener('input', (e) => { activeWorkout.notes = e.target.value; });
 
-    renderWorkoutExercises(exContainer, unit, timerContainer);
+    renderWorkoutExercises(exContainer, unit);
 
     // Event listeners set up ONCE here (not in renderWorkoutExercises which re-runs)
-    setupWorkoutEvents(exContainer, unit, timerContainer);
+    setupWorkoutEvents(exContainer, unit);
 
     container.querySelector('#add-exercise-btn').addEventListener('click', async () => {
         const exercises = await getAll('exercises');
-        showExercisePicker(exercises, exContainer, unit, timerContainer);
+        showExercisePicker(exercises, exContainer, unit);
     });
 
     container.querySelector('#finish-workout-btn').addEventListener('click', () => finishWorkout(container, unit));
 }
 
-function renderWorkoutExercises(container, unit, timerContainer) {
+function renderWorkoutExercises(container, unit) {
     container.innerHTML = activeWorkout.exercises.map((ex, ei) => {
         const prevText = ex.previousPerformance ? `Last: ${ex.previousPerformance[0]?.weight || 0}${unit} × ${ex.previousPerformance[0]?.reps || 0}` : 'First time';
         const reasonBadge = ex.suggestionReason === 'increment' ? '<span class="badge badge-success">↑ Up</span>' : ex.suggestionReason === 'deload' ? '<span class="badge badge-danger">↓ Deload</span>' : '';
@@ -169,46 +170,68 @@ function renderWorkoutExercises(container, unit, timerContainer) {
         <button class="btn btn-ghost btn-icon" data-show-plates="${ei}" title="Plates" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><line x1="6" y1="12" x2="18" y2="12"/></svg></button>
       </div>
       <div class="exercise-body" style="${ex.collapsed ? 'display:none' : ''}">
-        <div style="display:grid;grid-template-columns:36px 1fr 1fr 56px 36px;gap:var(--sp-2);align-items:center;padding:var(--sp-1) 0;color:var(--text-muted);font-size:var(--text-xs);font-weight:500"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS</span><span style="text-align:center">RPE</span><span></span></div>
+        <div style="display:grid;grid-template-columns:36px 1fr 1fr 56px 36px;gap:var(--sp-2);align-items:center;padding:var(--sp-1) 0;color:var(--text-muted);font-size:var(--text-xs);font-weight:500"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS</span><span style="text-align:center">RPE</span><span style="text-align:center">✓</span></div>
         ${ex.sets.map((set, si) => renderSetRow(set, si, ei)).join('')}
         <div class="flex gap-2" style="margin-top:var(--sp-2)"><button class="btn btn-ghost text-sm" data-add-set="${ei}" style="flex:1">+ Set</button>${ex.sets.length > 1 ? `<button class="btn btn-ghost text-sm text-danger" data-remove-set="${ei}">− Set</button>` : ''}<button class="btn btn-ghost text-sm" data-ex-note="${ei}">📝</button></div>
+        ${ex.notes ? `<div class="text-xs text-muted" style="margin-top:var(--sp-1);padding:var(--sp-1) var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic">${ex.notes}</div>` : ''}
       </div></div>`;
     }).join('');
 }
 
 function renderSetRow(set, si, ei) {
-    const cls = set.completed ? 'completed' : set.failed ? 'failed' : '';
-    const icon = set.completed ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : set.failed ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' : '';
+    const cls = set.completed ? 'completed' : '';
+    const icon = set.completed ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '';
     return `<div class="set-row"><span class="set-number">${set.setNumber}</span><input class="input-inline" type="number" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal"/><input class="input-inline" type="number" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric"/><input class="input-inline" type="number" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—"/><button class="set-check ${cls}" data-ei="${ei}" data-si="${si}">${icon}</button></div>`;
 }
 
-function setupWorkoutEvents(container, unit, timerContainer) {
+function setupWorkoutEvents(container, unit) {
     container.addEventListener('click', async (e) => {
         // Check plates button FIRST (it's inside card-header, must not bubble to toggle)
         const platesBtn = e.target.closest('[data-show-plates]');
         if (platesBtn) { e.stopPropagation(); const ei = parseInt(platesBtn.dataset.showPlates); const w = activeWorkout.exercises[ei].sets[0]?.weight || 0; const el = await createPlateCalculator(w); const body = openModal('', { title: `Plates for ${w}${unit}` }); body.innerHTML = ''; body.appendChild(el); return; }
 
         const toggle = e.target.closest('[data-toggle]');
-        if (toggle) { const ei = parseInt(toggle.dataset.toggle); activeWorkout.exercises[ei].collapsed = !activeWorkout.exercises[ei].collapsed; renderWorkoutExercises(container, unit, timerContainer); return; }
+        if (toggle) { const ei = parseInt(toggle.dataset.toggle); activeWorkout.exercises[ei].collapsed = !activeWorkout.exercises[ei].collapsed; renderWorkoutExercises(container, unit); return; }
 
         const check = e.target.closest('.set-check');
         if (check) {
             const ei = parseInt(check.dataset.ei), si = parseInt(check.dataset.si);
             const set = activeWorkout.exercises[ei].sets[si];
-            if (!set.completed && !set.failed) { set.completed = true; check.classList.add('completed'); check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'; const rest = await getSetting('restTimer', 90); startTimer(rest); }
-            else if (set.completed) { set.completed = false; set.failed = true; check.classList.remove('completed'); check.classList.add('failed'); check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; }
-            else { set.failed = false; check.classList.remove('failed'); check.innerHTML = ''; }
+            // Simple toggle: tap = done, tap again = undo
+            if (!set.completed) {
+                set.completed = true;
+                check.classList.add('completed');
+                check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+                const rest = await getSetting('restTimer', 90);
+                startTimer(rest);
+            } else {
+                set.completed = false;
+                check.classList.remove('completed');
+                check.innerHTML = '';
+            }
             return;
         }
 
         const removeSet = e.target.closest('[data-remove-set]');
-        if (removeSet) { const ei = parseInt(removeSet.dataset.removeSet); const ex = activeWorkout.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); ex.sets.forEach((s, i) => s.setNumber = i + 1); renderWorkoutExercises(container, unit, timerContainer); } return; }
+        if (removeSet) { const ei = parseInt(removeSet.dataset.removeSet); const ex = activeWorkout.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); ex.sets.forEach((s, i) => s.setNumber = i + 1); renderWorkoutExercises(container, unit); } return; }
 
         const addSet = e.target.closest('[data-add-set]');
-        if (addSet) { const ei = parseInt(addSet.dataset.addSet); const ex = activeWorkout.exercises[ei]; const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }); renderWorkoutExercises(container, unit, timerContainer); return; }
+        if (addSet) { const ei = parseInt(addSet.dataset.addSet); const ex = activeWorkout.exercises[ei]; const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }); renderWorkoutExercises(container, unit); return; }
 
         const noteBtn = e.target.closest('[data-ex-note]');
-        if (noteBtn) { const ei = parseInt(noteBtn.dataset.exNote); const note = prompt('Note:', activeWorkout.exercises[ei].notes || ''); if (note !== null) activeWorkout.exercises[ei].notes = note; return; }
+        if (noteBtn) {
+            const ei = parseInt(noteBtn.dataset.exNote);
+            const ex = activeWorkout.exercises[ei];
+            const body = openModal('', { title: `Note — ${ex.exerciseName}` });
+            body.innerHTML = `<textarea class="input" id="ex-note-input" rows="3" placeholder="How does this feel? Any cues?">${ex.notes || ''}</textarea>
+              <button class="btn btn-primary btn-full" id="save-note-btn" style="margin-top:var(--sp-3)">Save</button>`;
+            body.querySelector('#save-note-btn').addEventListener('click', () => {
+                ex.notes = body.querySelector('#ex-note-input').value;
+                closeModal();
+                renderWorkoutExercises(container, unit);
+            });
+            return;
+        }
     });
 
     container.addEventListener('input', (e) => {
@@ -231,6 +254,11 @@ async function finishWorkout(container, unit) {
     const dur = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
     if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
 
+    // Clean up timer bar from body
+    const timerBar = document.querySelector('.rest-timer-bar');
+    if (timerBar) timerBar.remove();
+    stopTimer();
+
     const w = await put('workouts', { id: activeWorkout.id, date: new Date().toISOString().split('T')[0], planId: activeWorkout.planId, planName: activeWorkout.planName, dayName: activeWorkout.dayName, notes: activeWorkout.notes, durationSec: dur, exerciseCount: activeWorkout.exercises.length });
 
     const allSets = [];
@@ -249,7 +277,7 @@ async function finishWorkout(container, unit) {
     showToast('Workout saved! 💪', 'success');
 }
 
-async function showExercisePicker(exercises, exContainer, unit, timerContainer) {
+async function showExercisePicker(exercises, exContainer, unit) {
     const body = openModal('', { title: 'Add Exercise' });
     body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="add-ex-search" placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button class="list-item" data-id="${ex.id}" data-name="${ex.name}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.muscleGroup} • ${ex.equipment}</div></span></button>`).join('')}</div>`;
 
@@ -265,6 +293,7 @@ async function showExercisePicker(exercises, exContainer, unit, timerContainer) 
         const prev = await getByIndex('sets', 'exerciseId', id);
         const sets = []; for (let i = 0; i < 3; i++) sets.push({ id: uuid(), setNumber: i + 1, targetReps: 5, weight: sug.weight, reps: 5, completed: false, failed: false, rpe: null });
         activeWorkout.exercises.push({ exerciseId: id, exerciseName: name, config: { sets: 3, reps: 5, increment: 5 }, sets, suggestedWeight: sug.weight, suggestionReason: sug.reason, previousPerformance: getLastWorkoutSets(prev), notes: '', collapsed: false });
-        closeModal(); renderWorkoutExercises(exContainer, unit, timerContainer); showToast(`${name} added`, 'success');
+        closeModal(); renderWorkoutExercises(exContainer, unit); showToast(`${name} added`, 'success');
     });
 }
+
