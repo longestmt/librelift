@@ -318,22 +318,48 @@ async function finishWorkout(container, unit) {
     }
 }
 
-function cancelWorkout(container, unit) {
-    const body = openModal('', { title: 'Cancel Workout?' });
-    body.innerHTML = `<p class="text-secondary" style="margin-bottom:var(--sp-4)">This will discard the current workout. Any logged sets will not be saved.</p>
-      <div class="flex gap-3"><button class="btn btn-secondary" id="cancel-no" style="flex:1">Keep Going</button><button class="btn btn-danger" id="cancel-yes" style="flex:1">Discard</button></div>`;
-    body.querySelector('#cancel-no').addEventListener('click', () => closeModal());
-    body.querySelector('#cancel-yes').addEventListener('click', () => {
+async function cancelWorkout(container, unit) {
+    const body = openModal('', { title: 'Stop Workout?' });
+    const hasPlan = !!activeWorkout?.planId;
+    body.innerHTML = `<p class="text-secondary" style="margin-bottom:var(--sp-4)">Any logged sets will not be saved.</p>
+      <div class="flex flex-col gap-2">
+        <button class="btn btn-secondary btn-full" id="cancel-keep">Keep Going</button>
+        <button class="btn btn-full" id="cancel-cancel" style="background:var(--bg-elevated);color:var(--text)">Cancel — Restart This Workout Later</button>
+        ${hasPlan ? '<button class="btn btn-danger btn-full" id="cancel-skip">Skip — Move to Next Workout</button>' : ''}
+      </div>`;
+    body.querySelector('#cancel-keep').addEventListener('click', () => closeModal());
+
+    // Cancel: revert day index so user gets the same workout again
+    body.querySelector('#cancel-cancel').addEventListener('click', async () => {
         closeModal();
-        if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
-        const timerBar = document.querySelector('.rest-timer-bar');
-        if (timerBar) timerBar.remove();
-        stopTimer();
-        activeWorkout = null;
-        // Re-render through router
-        window.dispatchEvent(new HashChangeEvent('hashchange'));
-        showToast('Workout discarded', 'info');
+        if (activeWorkout.planId) {
+            const plan = await getById('plans', activeWorkout.planId);
+            if (plan) {
+                plan.currentDayIndex = activeWorkout.dayIndex;
+                await put('plans', plan);
+            }
+        }
+        cleanupWorkout();
+        showToast('Workout cancelled — you\'ll get this one next time', 'info');
     });
+
+    // Skip: keep day index advanced (already done at start)
+    if (hasPlan) {
+        body.querySelector('#cancel-skip').addEventListener('click', () => {
+            closeModal();
+            cleanupWorkout();
+            showToast('Workout skipped — moving to next day', 'info');
+        });
+    }
+}
+
+function cleanupWorkout() {
+    if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+    const timerBar = document.querySelector('.rest-timer-bar');
+    if (timerBar) timerBar.remove();
+    stopTimer();
+    activeWorkout = null;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
 }
 
 async function showExercisePicker(exercises, exContainer, unit) {
