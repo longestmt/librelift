@@ -297,7 +297,8 @@ function cancelWorkout(container, unit) {
         if (timerBar) timerBar.remove();
         stopTimer();
         activeWorkout = null;
-        renderWorkoutPage(container);
+        // Re-render through router
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
         showToast('Workout discarded', 'info');
     });
 }
