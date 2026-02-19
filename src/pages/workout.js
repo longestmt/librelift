@@ -4,7 +4,7 @@
 
 import { getAll, getById, getByIndex, put, putMany, getSetting } from '../data/db.js';
 import { suggestNextWeight } from '../engine/progression.js';
-import { createTimerElement, startTimer } from '../components/timer.js';
+import { createTimerElement, startTimer, stopTimer } from '../components/timer.js';
 import { createPlateCalculator } from '../components/plate-calc.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
