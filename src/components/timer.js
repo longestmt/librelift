@@ -16,6 +16,7 @@ let timerState = {
 export function createTimerElement() {
     const el = document.createElement('div');
     el.className = 'rest-timer-bar';
+    el.style.display = 'none';
     el.innerHTML = `
     <div class="rest-timer-progress"></div>
     <div class="rest-timer-content">
@@ -133,4 +134,12 @@ export function isTimerRunning() {
 
 export function getTimerState() {
     return { ...timerState };
+}
+
+export function destroyTimer() {
+    stopTimer();
+    if (timerState.element) {
+        timerState.element.remove();
+        timerState.element = null;
+    }
 }
