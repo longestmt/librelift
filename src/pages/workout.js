@@ -147,6 +147,9 @@ function renderActiveWorkout(container, unit) {
 
     renderWorkoutExercises(exContainer, unit, timerContainer);
 
+    // Event listeners set up ONCE here (not in renderWorkoutExercises which re-runs)
+    setupWorkoutEvents(exContainer, unit, timerContainer);
+
     container.querySelector('#add-exercise-btn').addEventListener('click', async () => {
         const exercises = await getAll('exercises');
         showExercisePicker(exercises, exContainer, unit, timerContainer);
@@ -171,8 +174,6 @@ function renderWorkoutExercises(container, unit, timerContainer) {
         <div class="flex gap-2" style="margin-top:var(--sp-2)"><button class="btn btn-ghost text-sm" data-add-set="${ei}" style="flex:1">+ Set</button>${ex.sets.length > 1 ? `<button class="btn btn-ghost text-sm text-danger" data-remove-set="${ei}">− Set</button>` : ''}<button class="btn btn-ghost text-sm" data-ex-note="${ei}">📝</button></div>
       </div></div>`;
     }).join('');
-
-    setupWorkoutEvents(container, unit, timerContainer);
 }
 
 function renderSetRow(set, si, ei) {
