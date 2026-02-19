@@ -2,7 +2,7 @@
  * workout.js — Active Workout page (hero page)
  */
 
-import { getAll, getById, getByIndex, put, putMany, getSetting } from '../data/db.js';
+import { getAll, getById, getByIndex, put, putMany, getSetting, setSetting } from '../data/db.js';
 import { suggestNextWeight } from '../engine/progression.js';
 import { createTimerElement, startTimer, stopTimer } from '../components/timer.js';
 import { createPlateCalculator } from '../components/plate-calc.js';
@@ -24,20 +24,41 @@ export async function renderWorkoutPage(container) {
     }
 
     const plans = await getAll('plans');
+    const lastUsedId = await getSetting('lastUsedPlanId', null);
+
+    // Sort: last-used plan first, then others
+    const activePlan = plans.find(p => p.id === lastUsedId) || plans[0] || null;
+    const otherPlans = plans.filter(p => p !== activePlan);
+
+    const renderPlanButton = (plan, prominent) => {
+        const nextDay = plan.days?.[plan.currentDayIndex || 0];
+        if (prominent) {
+            return `<button class="card card-clickable" data-start-plan="${plan.id}" style="text-align:left;border:1px solid var(--accent);font-family:var(--font-sans);width:100%;cursor:pointer">
+          <div class="card-header"><div><div class="card-title" style="font-size:var(--text-lg)">${plan.name}</div>
+          ${nextDay ? `<div class="text-sm text-accent" style="margin-top:4px">Next: ${nextDay.name}</div>` : ''}
+          </div><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></button>`;
+        }
+        return `<button class="card card-clickable" data-start-plan="${plan.id}" style="text-align:left;border:none;font-family:var(--font-sans);width:100%;cursor:pointer;padding:var(--sp-2) var(--sp-3);opacity:0.85">
+          <div class="card-header"><div><div class="card-title text-sm">${plan.name}</div>
+          ${nextDay ? `<div class="text-xs text-muted">Next: ${nextDay.name}</div>` : ''}
+          </div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></button>`;
+    };
 
     container.innerHTML = `
     <div class="page-header" style="text-align:center; padding-top:var(--sp-8)">
       <h1 class="page-title">Ready to Lift?</h1>
-      <p class="page-subtitle">Start a workout from a plan or go freestyle</p>
+      <p class="page-subtitle">${activePlan ? 'Start your next workout' : 'Start a workout from a plan or go freestyle'}</p>
     </div>
     <div class="flex flex-col gap-3" style="max-width:400px; margin:var(--sp-6) auto 0">
-      ${plans.map(plan => {
-        const nextDay = plan.days?.[plan.currentDayIndex || 0];
-        return `<button class="card card-clickable" data-start-plan="${plan.id}" style="text-align:left;border:none;font-family:var(--font-sans);width:100%;cursor:pointer">
-          <div class="card-header"><div><div class="card-title">${plan.name}</div>
-          ${nextDay ? `<div class="text-xs text-accent" style="margin-top:2px">Next: ${nextDay.name}</div>` : ''}
-          </div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></button>`;
-    }).join('')}
+      ${activePlan ? renderPlanButton(activePlan, true) : ''}
+      ${otherPlans.length > 0 ? `
+        <button class="btn btn-ghost text-xs" id="toggle-other-plans" style="align-self:center;padding:var(--sp-1) var(--sp-3)">
+          <span id="toggle-other-label">Switch Program ▾</span>
+        </button>
+        <div id="other-plans" class="flex flex-col gap-2" style="display:none">
+          ${otherPlans.map(p => renderPlanButton(p, false)).join('')}
+        </div>
+      ` : ''}
       ${plans.length === 0 ? `<button class="btn btn-primary btn-full btn-lg" id="pick-a-plan"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>Choose a Program</button>` : ''}
       <div class="divider"></div>
       <button class="btn btn-secondary btn-full btn-lg" id="start-empty-workout">
@@ -46,11 +67,23 @@ export async function renderWorkoutPage(container) {
       </button>
     </div>`;
 
+    // Toggle other plans
+    container.querySelector('#toggle-other-plans')?.addEventListener('click', () => {
+        const el = container.querySelector('#other-plans');
+        const label = container.querySelector('#toggle-other-label');
+        if (el.style.display === 'none') { el.style.display = ''; label.textContent = 'Switch Program ▴'; }
+        else { el.style.display = 'none'; label.textContent = 'Switch Program ▾'; }
+    });
+
     container.addEventListener('click', async (e) => {
         const planBtn = e.target.closest('[data-start-plan]');
         if (planBtn) {
             const plan = await getById('plans', planBtn.dataset.startPlan);
-            if (plan) { await startWorkoutFromPlan(plan, unit); renderActiveWorkout(container, unit); }
+            if (plan) {
+                await setSetting('lastUsedPlanId', plan.id);
+                await startWorkoutFromPlan(plan, unit);
+                renderActiveWorkout(container, unit);
+            }
         }
     });
 
@@ -65,7 +98,11 @@ export async function renderWorkoutPage(container) {
 
     if (planId) {
         const plan = await getById('plans', planId);
-        if (plan) { await startWorkoutFromPlan(plan, unit); renderActiveWorkout(container, unit); }
+        if (plan) {
+            await setSetting('lastUsedPlanId', plan.id);
+            await startWorkoutFromPlan(plan, unit);
+            renderActiveWorkout(container, unit);
+        }
     }
 }
 
