@@ -132,8 +132,11 @@ export async function renderPlansPage(container) {
     const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'librelift-plan-template.json'; a.click();
-    URL.revokeObjectURL(url);
+    a.href = url; a.download = 'librelift-plan-template.json';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
     showToast('Template downloaded — give it to an AI!', 'success');
   });
 
