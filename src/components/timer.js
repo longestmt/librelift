@@ -1,5 +1,5 @@
 /**
- * timer.js — Rest timer with circular SVG countdown
+ * timer.js — Rest timer as a compact bar above bottom nav
  */
 
 import { getSetting } from '../data/db.js';
@@ -15,28 +15,22 @@ let timerState = {
 
 export function createTimerElement() {
     const el = document.createElement('div');
-    el.className = 'timer-ring';
-    el.style.margin = '0 auto';
-    el.style.cursor = 'pointer';
-
-    const r = 70;
-    const circumference = 2 * Math.PI * r;
-
+    el.className = 'rest-timer-bar';
     el.innerHTML = `
-    <svg width="160" height="160" viewBox="0 0 160 160">
-      <circle class="timer-ring-bg" cx="80" cy="80" r="${r}" />
-      <circle class="timer-ring-progress" cx="80" cy="80" r="${r}"
-        stroke-dasharray="${circumference}"
-        stroke-dashoffset="0" />
-    </svg>
-    <div class="timer-display">
-      <span class="timer-time">0:00</span>
-      <span class="timer-label">Rest</span>
-    </div>
-  `;
+    <div class="rest-timer-progress"></div>
+    <div class="rest-timer-content">
+      <span class="rest-timer-time font-mono">0:00</span>
+      <span class="rest-timer-label text-xs">Rest</span>
+      <div class="rest-timer-actions">
+        <button class="rest-timer-btn" data-timer-action="skip" title="Skip">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+        </button>
+      </div>
+    </div>`;
 
-    el.addEventListener('click', () => {
-        if (timerState.running) {
+    el.addEventListener('click', (e) => {
+        const action = e.target.closest('[data-timer-action]');
+        if (action?.dataset.timerAction === 'skip') {
             stopTimer();
         }
     });
@@ -57,6 +51,10 @@ export async function startTimer(durationSec, onComplete) {
     timerState.running = true;
     timerState.onComplete = onComplete;
 
+    if (timerState.element) {
+        timerState.element.style.display = '';
+    }
+
     updateTimerDisplay();
 
     timerState.interval = setInterval(() => {
@@ -64,12 +62,11 @@ export async function startTimer(durationSec, onComplete) {
         updateTimerDisplay();
 
         if (timerState.remaining <= 0) {
+            const cb = timerState.onComplete;
             stopTimer();
-            // Vibrate if available
             if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-            // Play sound
             playTimerSound();
-            if (timerState.onComplete) timerState.onComplete();
+            if (cb) cb();
         }
     }, 1000);
 }
@@ -83,10 +80,11 @@ export function stopTimer() {
     timerState.remaining = 0;
 
     if (timerState.element) {
-        const progress = timerState.element.querySelector('.timer-ring-progress');
-        const timeDisplay = timerState.element.querySelector('.timer-time');
-        const label = timerState.element.querySelector('.timer-label');
-        if (progress) progress.style.strokeDashoffset = '0';
+        timerState.element.style.display = 'none';
+        const progress = timerState.element.querySelector('.rest-timer-progress');
+        const timeDisplay = timerState.element.querySelector('.rest-timer-time');
+        const label = timerState.element.querySelector('.rest-timer-label');
+        if (progress) progress.style.width = '0%';
         if (timeDisplay) timeDisplay.textContent = '0:00';
         if (label) label.textContent = 'Rest';
     }
@@ -96,20 +94,18 @@ function updateTimerDisplay() {
     if (!timerState.element) return;
 
     const { remaining, total } = timerState;
-    const progress = timerState.element.querySelector('.timer-ring-progress');
-    const timeDisplay = timerState.element.querySelector('.timer-time');
-    const label = timerState.element.querySelector('.timer-label');
+    const progress = timerState.element.querySelector('.rest-timer-progress');
+    const timeDisplay = timerState.element.querySelector('.rest-timer-time');
+    const label = timerState.element.querySelector('.rest-timer-label');
 
     const min = Math.floor(remaining / 60);
     const sec = remaining % 60;
     if (timeDisplay) timeDisplay.textContent = `${min}:${sec.toString().padStart(2, '0')}`;
-    if (label) label.textContent = remaining > 0 ? 'Tap to skip' : 'Rest';
+    if (label) label.textContent = 'Rest';
 
     if (progress) {
-        const r = 70;
-        const circumference = 2 * Math.PI * r;
-        const offset = circumference * (1 - remaining / total);
-        progress.style.strokeDashoffset = offset;
+        const pct = ((total - remaining) / total) * 100;
+        progress.style.width = `${pct}%`;
     }
 }
 
