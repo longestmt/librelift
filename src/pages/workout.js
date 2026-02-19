@@ -173,7 +173,10 @@ function renderWorkoutExercises(container, unit) {
         return `<div class="card" data-ei="${ei}">
       <div class="card-header" style="cursor:pointer" data-toggle="${ei}">
         <div><div class="card-title">${ex.exerciseName}</div><div class="flex gap-2" style="margin-top:2px">${reasonBadge}<span class="prev-hint">${prevText}</span></div></div>
-        <button class="btn btn-ghost btn-icon" data-show-plates="${ei}" title="Plates" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><line x1="6" y1="12" x2="18" y2="12"/></svg></button>
+        <div class="flex items-center gap-1">
+          <button class="btn btn-ghost btn-icon" data-swap-ex="${ei}" title="Swap exercise" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></button>
+          <button class="btn btn-ghost btn-icon" data-show-plates="${ei}" title="Plates" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><line x1="6" y1="12" x2="18" y2="12"/></svg></button>
+        </div>
       </div>
       <div class="exercise-body" style="${ex.collapsed ? 'display:none' : ''}">
         <div style="display:grid;grid-template-columns:36px 1fr 1fr 56px 36px;gap:var(--sp-2);align-items:center;padding:var(--sp-1) 0;color:var(--text-muted);font-size:var(--text-xs);font-weight:500"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS</span><span style="text-align:center">RPE</span><span style="text-align:center">✓</span></div>
@@ -195,6 +198,9 @@ function setupWorkoutEvents(container, unit) {
         // Check plates button FIRST (it's inside card-header, must not bubble to toggle)
         const platesBtn = e.target.closest('[data-show-plates]');
         if (platesBtn) { e.stopPropagation(); const ei = parseInt(platesBtn.dataset.showPlates); const w = activeWorkout.exercises[ei].sets[0]?.weight || 0; const el = await createPlateCalculator(w); const body = openModal('', { title: `Plates for ${w}${unit}` }); body.innerHTML = ''; body.appendChild(el); return; }
+
+        const swapBtn = e.target.closest('[data-swap-ex]');
+        if (swapBtn) { e.stopPropagation(); const ei = parseInt(swapBtn.dataset.swapEx); showSwapPicker(ei, container, unit); return; }
 
         const toggle = e.target.closest('[data-toggle]');
         if (toggle) { const ei = parseInt(toggle.dataset.toggle); activeWorkout.exercises[ei].collapsed = !activeWorkout.exercises[ei].collapsed; renderWorkoutExercises(container, unit); return; }
@@ -327,3 +333,77 @@ async function showExercisePicker(exercises, exContainer, unit) {
     });
 }
 
+async function showSwapPicker(ei, exContainer, unit) {
+    const currentEx = activeWorkout.exercises[ei];
+    const allExercises = await getAll('exercises');
+    const currentExData = allExercises.find(e => e.id === currentEx.exerciseId);
+    const muscleGroup = currentExData?.muscleGroup || '';
+
+    // Filter to same muscle group, exclude current exercise
+    const alternatives = allExercises.filter(e => e.muscleGroup === muscleGroup && e.id !== currentEx.exerciseId);
+
+    const body = openModal('', { title: `Swap ${currentEx.exerciseName}` });
+    body.innerHTML = `
+    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${muscleGroup} exercises • ${alternatives.length} alternatives</div>
+    <div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="swap-search" placeholder="Search..."/></div>
+    <div id="swap-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">
+      ${alternatives.map(ex => `
+        <div class="list-item" style="flex-direction:column;align-items:stretch;gap:var(--sp-2);padding:var(--sp-3)">
+          <div><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.equipment}</div></div>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary text-xs" data-swap-id="${ex.id}" data-swap-name="${ex.name}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
+            ${activeWorkout.planId ? `<button class="btn btn-primary text-xs" data-swap-id="${ex.id}" data-swap-name="${ex.name}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
+          </div>
+        </div>
+      `).join('')}
+      ${alternatives.length === 0 ? '<div class="text-sm text-muted" style="padding:var(--sp-4);text-align:center">No alternatives found</div>' : ''}
+    </div>`;
+
+    body.querySelector('#swap-search').addEventListener('input', (e) => {
+        const q = e.target.value.toLowerCase();
+        body.querySelectorAll('.list-item').forEach(i => { i.style.display = i.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+    });
+
+    body.querySelector('#swap-list').addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-swap-id]');
+        if (!btn) return;
+        const newId = btn.dataset.swapId;
+        const newName = btn.dataset.swapName;
+        const mode = btn.dataset.swapMode;
+
+        // Swap in current workout
+        const oldId = currentEx.exerciseId;
+        const oldName = currentEx.exerciseName;
+        currentEx.exerciseId = newId;
+        currentEx.exerciseName = newName;
+
+        // Recalculate weight suggestion for new exercise
+        const sug = await suggestNextWeight(newId, currentEx.config || { sets: 3, reps: 5, increment: 5 }, unit);
+        const prev = await getByIndex('sets', 'exerciseId', newId);
+        currentEx.suggestedWeight = sug.weight;
+        currentEx.suggestionReason = sug.reason;
+        currentEx.previousPerformance = getLastWorkoutSets(prev);
+        // Update set weights to the new suggestion
+        for (const s of currentEx.sets) { if (!s.completed) s.weight = sug.weight; }
+
+        // If permanent, also update the plan
+        if (mode === 'permanent' && activeWorkout.planId) {
+            const plan = await getById('plans', activeWorkout.planId);
+            if (plan) {
+                const day = plan.days[activeWorkout.dayIndex];
+                if (day) {
+                    const planEx = day.exercises.find(e => e.exerciseId === oldId || e.exerciseName === oldName);
+                    if (planEx) {
+                        planEx.exerciseId = newId;
+                        planEx.exerciseName = newName;
+                    }
+                    await put('plans', plan);
+                }
+            }
+        }
+
+        closeModal();
+        renderWorkoutExercises(exContainer, unit);
+        showToast(`Swapped to ${newName}${mode === 'permanent' ? ' (updated plan)' : ''}`, 'success');
+    });
+}
