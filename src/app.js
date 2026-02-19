@@ -15,7 +15,7 @@ const ROUTES = {
   '/workout': { render: renderWorkoutPage, label: 'Workout', icon: 'dumbbell' },
   '/history': { render: renderHistoryPage, label: 'History', icon: 'calendar' },
   '/exercises': { render: renderExercisesPage, label: 'Exercises', icon: 'list' },
-  '/plans': { render: renderPlansPage, label: 'Plans', icon: 'clipboard' },
+  '/plans': { render: renderPlansPage, label: 'Programs', icon: 'clipboard' },
   '/settings': { render: renderSettingsPage, label: 'Settings', icon: 'settings' },
 };
 
