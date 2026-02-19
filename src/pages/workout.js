@@ -106,7 +106,7 @@ function renderActiveWorkout(container, unit) {
       <div><h1 class="page-title" style="font-size:var(--text-xl)">${activeWorkout.dayName || 'Workout'}</h1>
       ${activeWorkout.planName ? `<div class="text-xs text-muted">${activeWorkout.planName}</div>` : ''}</div>
       <div class="flex items-center gap-3">
-        <div id="workout-clock" class="font-mono text-sm text-accent" style="min-width:50px;text-align:right">0:00</div>
+        <button id="workout-clock" class="btn btn-ghost font-mono text-sm text-accent" style="min-width:50px;padding:var(--sp-2) var(--sp-3)" title="Tap to pause/resume">0:00</button>
         <button class="btn btn-danger" id="finish-workout-btn" style="padding:var(--sp-2) var(--sp-4)">Finish</button>
       </div>
     </div>
@@ -114,14 +114,34 @@ function renderActiveWorkout(container, unit) {
     <div style="margin-top:var(--sp-4)"><div class="input-group"><label class="input-label">Gym Notes</label>
       <textarea class="input" id="workout-notes" rows="2" placeholder="How's the session going?">${activeWorkout.notes}</textarea></div></div>
     <div style="margin-top:var(--sp-4)"><button class="btn btn-secondary btn-full" id="add-exercise-btn">+ Add Exercise</button></div>
-    <div id="rest-timer-container" style="position:fixed;bottom:calc(var(--nav-height) + 16px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:50;display:none;"></div>`;
+    <div id="rest-timer-container" style="display:none;"></div>`;
 
     const exContainer = container.querySelector('#workout-exercises');
     const timerContainer = container.querySelector('#rest-timer-container');
     timerContainer.appendChild(createTimerElement());
 
-    updateWorkoutClock(container.querySelector('#workout-clock'));
-    workoutInterval = setInterval(() => updateWorkoutClock(container.querySelector('#workout-clock')), 1000);
+    // Workout clock with pause
+    let clockPaused = false;
+    let pausedElapsed = 0;
+    const clockEl = container.querySelector('#workout-clock');
+    updateWorkoutClock(clockEl);
+    workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
+
+    clockEl.addEventListener('click', () => {
+        if (clockPaused) {
+            // Resume: adjust startTime to account for paused duration
+            activeWorkout.startTime = Date.now() - (pausedElapsed * 1000);
+            clockPaused = false;
+            clockEl.style.opacity = '1';
+            workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
+        } else {
+            // Pause: save elapsed and stop interval
+            pausedElapsed = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
+            clockPaused = true;
+            clockEl.style.opacity = '0.5';
+            if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+        }
+    });
 
     container.querySelector('#workout-notes').addEventListener('input', (e) => { activeWorkout.notes = e.target.value; });
 
@@ -174,7 +194,7 @@ function setupWorkoutEvents(container, unit, timerContainer) {
         if (check) {
             const ei = parseInt(check.dataset.ei), si = parseInt(check.dataset.si);
             const set = activeWorkout.exercises[ei].sets[si];
-            if (!set.completed && !set.failed) { set.completed = true; check.classList.add('completed'); check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'; const rest = await getSetting('restTimer', 90); timerContainer.style.display = 'block'; startTimer(rest, () => { timerContainer.style.display = 'none'; }); }
+            if (!set.completed && !set.failed) { set.completed = true; check.classList.add('completed'); check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'; const rest = await getSetting('restTimer', 90); startTimer(rest); }
             else if (set.completed) { set.completed = false; set.failed = true; check.classList.remove('completed'); check.classList.add('failed'); check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; }
             else { set.failed = false; check.classList.remove('failed'); check.innerHTML = ''; }
             return;

@@ -593,52 +593,82 @@ textarea.input {
     background: var(--success);
 }
 
-/* ---------- Timer ring ---------- */
-.timer-ring {
-    position: relative;
-    width: 160px;
-    height: 160px;
+/* ---------- Rest timer bar ---------- */
+.rest-timer-bar {
+    position: fixed;
+    bottom: var(--nav-height);
+    left: 0;
+    right: 0;
+    height: 44px;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border);
+    z-index: 60;
+    overflow: hidden;
 }
 
-.timer-ring svg {
-    transform: rotate(-90deg);
+@media (min-width: 768px) {
+    .rest-timer-bar {
+        bottom: 0;
+        left: var(--sidebar-width);
+    }
 }
 
-.timer-ring-bg {
-    fill: none;
-    stroke: var(--bg-elevated);
-    stroke-width: 6;
-}
-
-.timer-ring-progress {
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 6;
-    stroke-linecap: round;
-    transition: stroke-dashoffset 1s linear;
-}
-
-.timer-display {
+.rest-timer-progress {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: rgba(212, 204, 180, .12);
+    transition: width 1s linear;
+}
+
+.rest-timer-content {
+    position: relative;
+    z-index: 1;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: var(--sp-3);
+    height: 100%;
+    padding: 0 var(--sp-4);
 }
 
-.timer-time {
-    font-size: var(--text-3xl);
+.rest-timer-time {
+    font-size: var(--text-base);
     font-weight: var(--weight-bold);
-    font-family: var(--font-mono);
+    color: var(--accent);
     letter-spacing: -0.02em;
 }
 
-.timer-label {
-    font-size: var(--text-xs);
+.rest-timer-label {
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: .05em;
+}
+
+.rest-timer-actions {
+    display: flex;
+    gap: var(--sp-2);
+}
+
+.rest-timer-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-out);
+}
+
+.rest-timer-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 /* ---------- Plate visualizer ---------- */
