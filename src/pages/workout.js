@@ -283,11 +283,34 @@ async function finishWorkout(container, unit) {
         const done = allSets.filter(s => s.completed).length;
         const min = Math.floor(dur / 60);
 
+        // Get last bodyweight for pre-fill
+        const bwEntries = await getAll('bodyWeight');
+        const lastBW = bwEntries.sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+
         container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${activeWorkout.dayName}</p></div>
         <div class="card" style="margin-top:var(--sp-6)"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);text-align:center"><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${min}m</div><div class="text-xs text-muted">Duration</div></div><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${vol.toLocaleString()}</div><div class="text-xs text-muted">Volume</div></div><div><div class="font-bold text-success" style="font-size:var(--text-xl)">${done}/${allSets.length}</div><div class="text-xs text-muted">Sets</div></div></div></div>
-        <button class="btn btn-primary btn-full btn-lg" style="margin-top:var(--sp-6)" id="done-btn">Done</button>`;
+        <div class="card" style="margin-top:var(--sp-3);padding:var(--sp-3)">
+          <div class="flex items-center gap-3">
+            <span style="font-size:20px">⚖️</span>
+            <div style="flex:1">
+              <div class="text-xs text-muted" style="margin-bottom:2px">Bodyweight (optional)</div>
+              <div class="flex items-center gap-2">
+                <input class="input" type="number" step="0.1" id="bw-input" placeholder="${lastBW ? lastBW.value : 'e.g. 185'}" value="${lastBW ? lastBW.value : ''}" style="width:100px" />
+                <span class="text-sm text-muted">${unit}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full btn-lg" style="margin-top:var(--sp-4)" id="done-btn">Done</button>`;
 
-        container.querySelector('#done-btn').addEventListener('click', () => { activeWorkout = null; window.location.hash = '/data'; });
+        container.querySelector('#done-btn').addEventListener('click', async () => {
+            const bwVal = parseFloat(container.querySelector('#bw-input').value);
+            if (bwVal && bwVal > 0) {
+                await put('bodyWeight', { date: new Date().toISOString().split('T')[0], value: bwVal, unit });
+            }
+            activeWorkout = null;
+            window.location.hash = '/data';
+        });
         showToast('Workout saved! 💪', 'success');
     } catch (err) {
         console.error('Error finishing workout:', err);

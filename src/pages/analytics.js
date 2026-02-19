@@ -84,6 +84,12 @@ export async function renderAnalyticsPage(container) {
       </div>
     </div>
 
+    <!-- Bodyweight -->
+    <div class="card" style="margin-bottom:var(--sp-4)">
+      <div class="card-header"><div class="card-title" style="font-size:var(--text-sm)">Bodyweight</div></div>
+      <div id="bw-chart-area" style="margin-top:var(--sp-2)"></div>
+    </div>
+
     <!-- Tab Bar -->
     <div class="flex gap-2" style="margin-bottom:var(--sp-4)">
       <button class="btn btn-sm analytics-tab active" data-tab="muscle" style="flex:1">Muscle Engagement</button>
@@ -92,6 +98,21 @@ export async function renderAnalyticsPage(container) {
 
     <div id="analytics-tab-content"></div>
   `;
+
+  // Render bodyweight chart
+  const bwEntries = await getAll('bodyWeight');
+  const bwArea = container.querySelector('#bw-chart-area');
+  if (bwEntries.length > 0) {
+    const sorted = bwEntries.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const latest = sorted[sorted.length - 1];
+    const chartData = sorted.map(e => ({ label: (e.date || '').slice(5), value: e.value }));
+    bwArea.innerHTML = `<div class="flex items-center justify-between" style="margin-bottom:var(--sp-2)"><span class="font-bold text-accent" style="font-size:var(--text-lg)">${latest.value} ${latest.unit || unit}</span><span class="text-xs text-muted">${sorted.length} entries</span></div>`;
+    const width = Math.min(bwArea.offsetWidth || 300, 500);
+    const chart = createLineChart(chartData, { width, height: 140, label: `Weight (${unit})` });
+    bwArea.appendChild(chart);
+  } else {
+    bwArea.innerHTML = `<div class="text-sm text-muted" style="text-align:center;padding:var(--sp-3)">No bodyweight data yet — log it after finishing a workout</div>`;
+  }
 
   const tabContent = container.querySelector('#analytics-tab-content');
   const tabs = container.querySelectorAll('.analytics-tab');
