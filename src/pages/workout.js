@@ -148,7 +148,7 @@ function renderWorkoutExercises(container, unit, timerContainer) {
       <div class="exercise-body" style="${ex.collapsed ? 'display:none' : ''}">
         <div style="display:grid;grid-template-columns:36px 1fr 1fr auto auto;gap:var(--sp-2);align-items:center;padding:var(--sp-1) 0;color:var(--text-muted);font-size:var(--text-xs);font-weight:500"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS</span><span style="width:36px;text-align:center">RPE</span><span style="width:36px"></span></div>
         ${ex.sets.map((set, si) => renderSetRow(set, si, ei)).join('')}
-        <div class="flex gap-2" style="margin-top:var(--sp-2)"><button class="btn btn-ghost text-sm" data-add-set="${ei}" style="flex:1">+ Set</button><button class="btn btn-ghost text-sm" data-ex-note="${ei}">📝</button></div>
+        <div class="flex gap-2" style="margin-top:var(--sp-2)"><button class="btn btn-ghost text-sm" data-add-set="${ei}" style="flex:1">+ Set</button>${ex.sets.length > 1 ? `<button class="btn btn-ghost text-sm text-danger" data-remove-set="${ei}">− Set</button>` : ''}<button class="btn btn-ghost text-sm" data-ex-note="${ei}">📝</button></div>
       </div></div>`;
     }).join('');
 
@@ -179,6 +179,9 @@ function setupWorkoutEvents(container, unit, timerContainer) {
             else { set.failed = false; check.classList.remove('failed'); check.innerHTML = ''; }
             return;
         }
+
+        const removeSet = e.target.closest('[data-remove-set]');
+        if (removeSet) { const ei = parseInt(removeSet.dataset.removeSet); const ex = activeWorkout.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); ex.sets.forEach((s, i) => s.setNumber = i + 1); renderWorkoutExercises(container, unit, timerContainer); } return; }
 
         const addSet = e.target.closest('[data-add-set]');
         if (addSet) { const ei = parseInt(addSet.dataset.addSet); const ex = activeWorkout.exercises[ei]; const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }); renderWorkoutExercises(container, unit, timerContainer); return; }
