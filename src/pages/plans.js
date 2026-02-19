@@ -31,10 +31,10 @@ export async function renderPlansPage(container) {
         </p>
         <div class="flex flex-col gap-2" id="template-buttons">
           ${available.map(p => `
-            <button class="btn btn-secondary btn-full" data-template="${p.idx}" style="justify-content:flex-start; text-align:left;">
-              <span>
+            <button class="btn btn-secondary btn-full" data-template="${p.idx}" style="justify-content:flex-start; text-align:left; overflow:hidden;">
+              <span style="overflow:hidden; min-width:0;">
                 <strong>${p.name}</strong>
-                <span class="text-xs text-muted" style="display:block">${p.schedule}</span>
+                <span class="text-xs text-muted" style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.schedule}</span>
               </span>
             </button>
           `).join('')}
