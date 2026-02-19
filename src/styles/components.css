@@ -596,7 +596,7 @@ textarea.input {
 /* ---------- Rest timer bar ---------- */
 .rest-timer-bar {
     position: fixed;
-    bottom: var(--nav-height);
+    bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
     left: 0;
     right: 0;
     height: 44px;
