@@ -147,10 +147,17 @@ function showWorkoutDetail(workout, sets, onDelete) {
     </div>
     <button class="btn btn-ghost text-sm text-danger btn-full" id="delete-workout-btn" style="margin-top:var(--sp-4)">Delete Workout</button>`;
 
-  body.querySelector('#delete-workout-btn').addEventListener('click', async () => {
-    if (!confirm('Delete this workout? This cannot be undone.')) return;
+  const deleteBtn = body.querySelector('#delete-workout-btn');
+  let confirmPending = false;
+  deleteBtn.addEventListener('click', async () => {
+    if (!confirmPending) {
+      confirmPending = true;
+      deleteBtn.textContent = 'Tap again to confirm';
+      deleteBtn.style.fontWeight = '600';
+      setTimeout(() => { confirmPending = false; deleteBtn.textContent = 'Delete Workout'; deleteBtn.style.fontWeight = ''; }, 3000);
+      return;
+    }
     await softDelete('workouts', workout.id);
-    // Also delete associated sets
     for (const s of sets) await softDelete('sets', s.id);
     closeModal();
     showToast('Workout deleted', 'success');
