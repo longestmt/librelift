@@ -36,6 +36,11 @@ export const DEFAULT_EXERCISES = [
         instructions: 'Lie flat with dumbbells. Lower to chest level, press up bringing dumbbells together.'
     },
     {
+        name: 'Incline Dumbbell Bench Press', category: 'Compound', muscleGroup: 'Chest', equipment: 'Dumbbell',
+        mediaUrl: 'https://www.youtube.com/watch?v=8iPEnn-ltC8',
+        instructions: 'Set bench to 30-45°. Press dumbbells up from shoulder level, lower controlled.'
+    },
+    {
         name: 'Dumbbell Fly', category: 'Isolation', muscleGroup: 'Chest', equipment: 'Dumbbell',
         mediaUrl: 'https://www.youtube.com/watch?v=eozdVDA78K0',
         instructions: 'Lie flat with arms extended. Lower dumbbells in arc to sides, squeeze back up.'
