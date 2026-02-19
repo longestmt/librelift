@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-    base: '/librelift/',
+    base: '/',
     root: '.',
     publicDir: 'public',
     build: {
@@ -20,7 +20,7 @@ export default defineConfig({
                 theme_color: '#1a1d21',
                 background_color: '#1a1d21',
                 display: 'standalone',
-                start_url: '/librelift/',
+                start_url: '/',
                 icons: [
                     {
                         src: 'favicon.svg',
