@@ -5,6 +5,7 @@
 import { getAll, putMany, getSetting, setSetting } from './data/db.js';
 import { DEFAULT_EXERCISES } from './data/exercises-seed.js';
 import { renderWorkoutPage } from './pages/workout.js';
+import { destroyTimer } from './components/timer.js';
 import { renderHistoryPage } from './pages/history.js';
 import { renderExercisesPage } from './pages/exercises.js';
 import { renderPlansPage } from './pages/plans.js';
@@ -103,6 +104,9 @@ function renderShell() {
 async function handleRoute() {
   const hash = window.location.hash.slice(1) || '/workout';
   const route = ROUTES[hash] || ROUTES['/workout'];
+
+  // Clean up rest timer when leaving workout
+  destroyTimer();
 
   // Update nav active state
   document.querySelectorAll('.nav-item').forEach(item => {
