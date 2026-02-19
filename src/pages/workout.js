@@ -38,11 +38,11 @@ export async function renderWorkoutPage(container) {
           ${nextDay ? `<div class="text-xs text-accent" style="margin-top:2px">Next: ${nextDay.name}</div>` : ''}
           </div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></button>`;
     }).join('')}
-      ${plans.length === 0 ? '<div class="empty-state" style="padding:var(--sp-6)"><div class="empty-state-text">No plans yet. Create one in the Plans tab.</div></div>' : ''}
+      ${plans.length === 0 ? `<button class="btn btn-primary btn-full btn-lg" id="pick-a-plan"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>Pick a Plan</button>` : ''}
       <div class="divider"></div>
       <button class="btn btn-secondary btn-full btn-lg" id="start-empty-workout">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Empty Workout
+        Custom Workout
       </button>
     </div>`;
 
@@ -57,6 +57,10 @@ export async function renderWorkoutPage(container) {
     container.querySelector('#start-empty-workout')?.addEventListener('click', async () => {
         startEmptyWorkout();
         renderActiveWorkout(container, unit);
+    });
+
+    container.querySelector('#pick-a-plan')?.addEventListener('click', () => {
+        window.location.hash = '/plans';
     });
 
     if (planId) {
