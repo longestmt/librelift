@@ -163,6 +163,10 @@ function renderSetRow(set, si, ei) {
 
 function setupWorkoutEvents(container, unit, timerContainer) {
     container.addEventListener('click', async (e) => {
+        // Check plates button FIRST (it's inside card-header, must not bubble to toggle)
+        const platesBtn = e.target.closest('[data-show-plates]');
+        if (platesBtn) { e.stopPropagation(); const ei = parseInt(platesBtn.dataset.showPlates); const w = activeWorkout.exercises[ei].sets[0]?.weight || 0; const el = await createPlateCalculator(w); const body = openModal('', { title: `Plates for ${w}${unit}` }); body.innerHTML = ''; body.appendChild(el); return; }
+
         const toggle = e.target.closest('[data-toggle]');
         if (toggle) { const ei = parseInt(toggle.dataset.toggle); activeWorkout.exercises[ei].collapsed = !activeWorkout.exercises[ei].collapsed; renderWorkoutExercises(container, unit, timerContainer); return; }
 
@@ -181,9 +185,6 @@ function setupWorkoutEvents(container, unit, timerContainer) {
 
         const noteBtn = e.target.closest('[data-ex-note]');
         if (noteBtn) { const ei = parseInt(noteBtn.dataset.exNote); const note = prompt('Note:', activeWorkout.exercises[ei].notes || ''); if (note !== null) activeWorkout.exercises[ei].notes = note; return; }
-
-        const platesBtn = e.target.closest('[data-show-plates]');
-        if (platesBtn) { const ei = parseInt(platesBtn.dataset.showPlates); const w = activeWorkout.exercises[ei].sets[0]?.weight || 0; const el = await createPlateCalculator(w); const body = openModal('', { title: `Plates for ${w}${unit}` }); body.innerHTML = ''; body.appendChild(el); return; }
     });
 
     container.addEventListener('input', (e) => {
