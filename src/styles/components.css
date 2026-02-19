@@ -183,7 +183,8 @@
     border-radius: var(--radius-sm);
     padding: var(--sp-2) var(--sp-3);
     text-align: center;
-    width: 72px;
+    width: 100%;
+    min-width: 0;
     font-size: var(--text-base);
     font-weight: var(--weight-semibold);
     font-family: var(--font-sans);
@@ -506,7 +507,7 @@ textarea.input {
 /* ---------- Set row (workout logging) ---------- */
 .set-row {
     display: grid;
-    grid-template-columns: 36px 1fr 1fr auto auto;
+    grid-template-columns: 36px 1fr 1fr 56px 36px;
     gap: var(--sp-2);
     align-items: center;
     padding: var(--sp-2) 0;
