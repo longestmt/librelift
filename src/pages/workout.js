@@ -105,8 +105,9 @@ function renderActiveWorkout(container, unit) {
     <div class="flex items-center justify-between" style="margin-bottom:var(--sp-4)">
       <div><h1 class="page-title" style="font-size:var(--text-xl)">${activeWorkout.dayName || 'Workout'}</h1>
       ${activeWorkout.planName ? `<div class="text-xs text-muted">${activeWorkout.planName}</div>` : ''}</div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
         <button id="workout-clock" class="btn btn-ghost font-mono text-sm text-accent" style="min-width:50px;padding:var(--sp-2) var(--sp-3)" title="Tap to pause/resume">0:00</button>
+        <button class="btn btn-ghost text-sm" id="cancel-workout-btn" style="padding:var(--sp-2) var(--sp-3);color:var(--text-muted)">Cancel</button>
         <button class="btn btn-danger" id="finish-workout-btn" style="padding:var(--sp-2) var(--sp-4)">Finish</button>
       </div>
     </div>
@@ -157,6 +158,7 @@ function renderActiveWorkout(container, unit) {
     });
 
     container.querySelector('#finish-workout-btn').addEventListener('click', () => finishWorkout(container, unit));
+    container.querySelector('#cancel-workout-btn').addEventListener('click', () => cancelWorkout(container, unit));
 }
 
 function renderWorkoutExercises(container, unit) {
@@ -251,30 +253,53 @@ function updateWorkoutClock(el) {
 
 async function finishWorkout(container, unit) {
     if (!activeWorkout) return;
-    const dur = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
-    if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
 
-    // Clean up timer bar from body
-    const timerBar = document.querySelector('.rest-timer-bar');
-    if (timerBar) timerBar.remove();
-    stopTimer();
+    try {
+        const dur = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
+        if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
 
-    const w = await put('workouts', { id: activeWorkout.id, date: new Date().toISOString().split('T')[0], planId: activeWorkout.planId, planName: activeWorkout.planName, dayName: activeWorkout.dayName, notes: activeWorkout.notes, durationSec: dur, exerciseCount: activeWorkout.exercises.length });
+        // Clean up timer bar from body
+        const timerBar = document.querySelector('.rest-timer-bar');
+        if (timerBar) timerBar.remove();
+        stopTimer();
 
-    const allSets = [];
-    for (const ex of activeWorkout.exercises) for (const s of ex.sets) allSets.push({ id: s.id, workoutId: w.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed });
-    await putMany('sets', allSets);
+        const w = await put('workouts', { id: activeWorkout.id, date: new Date().toISOString().split('T')[0], planId: activeWorkout.planId, planName: activeWorkout.planName, dayName: activeWorkout.dayName, notes: activeWorkout.notes, durationSec: dur, exerciseCount: activeWorkout.exercises.length });
 
-    const vol = allSets.reduce((s, r) => s + (r.completed ? r.weight * r.reps : 0), 0);
-    const done = allSets.filter(s => s.completed).length;
-    const min = Math.floor(dur / 60);
+        const allSets = [];
+        for (const ex of activeWorkout.exercises) for (const s of ex.sets) allSets.push({ id: s.id, workoutId: w.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed });
+        if (allSets.length > 0) await putMany('sets', allSets);
 
-    container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${activeWorkout.dayName}</p></div>
-    <div class="card" style="margin-top:var(--sp-6)"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);text-align:center"><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${min}m</div><div class="text-xs text-muted">Duration</div></div><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${vol.toLocaleString()}</div><div class="text-xs text-muted">Volume</div></div><div><div class="font-bold text-success" style="font-size:var(--text-xl)">${done}/${allSets.length}</div><div class="text-xs text-muted">Sets</div></div></div></div>
-    <button class="btn btn-primary btn-full btn-lg" style="margin-top:var(--sp-6)" id="done-btn">Done</button>`;
+        const vol = allSets.reduce((s, r) => s + (r.completed ? r.weight * r.reps : 0), 0);
+        const done = allSets.filter(s => s.completed).length;
+        const min = Math.floor(dur / 60);
 
-    container.querySelector('#done-btn').addEventListener('click', () => { activeWorkout = null; window.location.hash = '/history'; });
-    showToast('Workout saved! 💪', 'success');
+        container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${activeWorkout.dayName}</p></div>
+        <div class="card" style="margin-top:var(--sp-6)"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);text-align:center"><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${min}m</div><div class="text-xs text-muted">Duration</div></div><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${vol.toLocaleString()}</div><div class="text-xs text-muted">Volume</div></div><div><div class="font-bold text-success" style="font-size:var(--text-xl)">${done}/${allSets.length}</div><div class="text-xs text-muted">Sets</div></div></div></div>
+        <button class="btn btn-primary btn-full btn-lg" style="margin-top:var(--sp-6)" id="done-btn">Done</button>`;
+
+        container.querySelector('#done-btn').addEventListener('click', () => { activeWorkout = null; window.location.hash = '/history'; });
+        showToast('Workout saved! 💪', 'success');
+    } catch (err) {
+        console.error('Error finishing workout:', err);
+        showToast('Error saving workout: ' + err.message, 'danger');
+    }
+}
+
+function cancelWorkout(container, unit) {
+    const body = openModal('', { title: 'Cancel Workout?' });
+    body.innerHTML = `<p class="text-secondary" style="margin-bottom:var(--sp-4)">This will discard the current workout. Any logged sets will not be saved.</p>
+      <div class="flex gap-3"><button class="btn btn-secondary" id="cancel-no" style="flex:1">Keep Going</button><button class="btn btn-danger" id="cancel-yes" style="flex:1">Discard</button></div>`;
+    body.querySelector('#cancel-no').addEventListener('click', () => closeModal());
+    body.querySelector('#cancel-yes').addEventListener('click', () => {
+        closeModal();
+        if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+        const timerBar = document.querySelector('.rest-timer-bar');
+        if (timerBar) timerBar.remove();
+        stopTimer();
+        activeWorkout = null;
+        renderWorkoutPage(container);
+        showToast('Workout discarded', 'info');
+    });
 }
 
 async function showExercisePicker(exercises, exContainer, unit) {
