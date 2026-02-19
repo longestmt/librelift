@@ -6,16 +6,14 @@ import { getAll, putMany, getSetting, setSetting } from './data/db.js';
 import { DEFAULT_EXERCISES } from './data/exercises-seed.js';
 import { renderWorkoutPage } from './pages/workout.js';
 import { destroyTimer } from './components/timer.js';
-import { renderHistoryPage } from './pages/history.js';
-import { renderAnalyticsPage } from './pages/analytics.js';
+import { renderDataPage } from './pages/data.js';
 import { renderExercisesPage } from './pages/exercises.js';
 import { renderPlansPage } from './pages/plans.js';
 import { renderSettingsPage } from './pages/settings.js';
 
 const ROUTES = {
   '/workout': { render: renderWorkoutPage, label: 'Workout', icon: 'dumbbell' },
-  '/history': { render: renderHistoryPage, label: 'History', icon: 'calendar' },
-  '/analytics': { render: renderAnalyticsPage, label: 'Analytics', icon: 'barchart' },
+  '/data': { render: renderDataPage, label: 'Data', icon: 'barchart' },
   '/exercises': { render: renderExercisesPage, label: 'Exercises', icon: 'list' },
   '/plans': { render: renderPlansPage, label: 'Programs', icon: 'clipboard' },
   '/settings': { render: renderSettingsPage, label: 'Settings', icon: 'settings' },

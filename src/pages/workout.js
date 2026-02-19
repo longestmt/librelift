@@ -287,7 +287,7 @@ async function finishWorkout(container, unit) {
         <div class="card" style="margin-top:var(--sp-6)"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);text-align:center"><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${min}m</div><div class="text-xs text-muted">Duration</div></div><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${vol.toLocaleString()}</div><div class="text-xs text-muted">Volume</div></div><div><div class="font-bold text-success" style="font-size:var(--text-xl)">${done}/${allSets.length}</div><div class="text-xs text-muted">Sets</div></div></div></div>
         <button class="btn btn-primary btn-full btn-lg" style="margin-top:var(--sp-6)" id="done-btn">Done</button>`;
 
-        container.querySelector('#done-btn').addEventListener('click', () => { activeWorkout = null; window.location.hash = '/history'; });
+        container.querySelector('#done-btn').addEventListener('click', () => { activeWorkout = null; window.location.hash = '/data'; });
         showToast('Workout saved! 💪', 'success');
     } catch (err) {
         console.error('Error finishing workout:', err);
