@@ -8,15 +8,15 @@ import { showToast } from '../components/toast.js';
 import { STANDARD_PLATES_LB, STANDARD_PLATES_KG } from '../engine/progression.js';
 
 export async function renderSettingsPage(container) {
-    const unit = await getSetting('unit', 'lb');
-    const barWeight = await getSetting('barWeight', unit === 'kg' ? 20 : 45);
-    const restTimer = await getSetting('restTimer', 90);
-    const theme = await getSetting('theme', 'dark');
-    const plates = await getSetting('plateInventory', null);
-    const defaultPlates = unit === 'kg' ? { ...STANDARD_PLATES_KG } : { ...STANDARD_PLATES_LB };
-    const plateInventory = plates || Object.fromEntries(Object.keys(defaultPlates).map(k => [k, 8]));
+  const unit = await getSetting('unit', 'lb');
+  const barWeight = await getSetting('barWeight', unit === 'kg' ? 20 : 45);
+  const restTimer = await getSetting('restTimer', 90);
+  const theme = await getSetting('theme', 'dark');
+  const plates = await getSetting('plateInventory', null);
+  const defaultPlates = unit === 'kg' ? { ...STANDARD_PLATES_KG } : { ...STANDARD_PLATES_LB };
+  const plateInventory = plates || Object.fromEntries(Object.keys(defaultPlates).map(k => [k, 8]));
 
-    container.innerHTML = `
+  container.innerHTML = `
     <div class="page-header">
       <h1 class="page-title">Settings</h1>
     </div>
@@ -56,8 +56,9 @@ export async function renderSettingsPage(container) {
       <div class="card">
         <div class="card-title" style="margin-bottom:var(--sp-3)">Theme</div>
         <div class="tabs" id="theme-tabs">
-          <button class="tab ${theme === 'dark' ? 'active' : ''}" data-theme="dark">Compline (Dark)</button>
-          <button class="tab ${theme === 'light' ? 'active' : ''}" data-theme="light">Lauds (Light)</button>
+          <button class="tab ${theme === 'dark' ? 'active' : ''}" data-theme="dark">Compline</button>
+          <button class="tab ${theme === 'amoled' ? 'active' : ''}" data-theme="amoled">Vigil</button>
+          <button class="tab ${theme === 'light' ? 'active' : ''}" data-theme="light">Lauds</button>
         </div>
       </div>
 
@@ -105,61 +106,62 @@ export async function renderSettingsPage(container) {
       </div>
     </div>`;
 
-    // Unit toggle
-    container.querySelector('#unit-tabs').addEventListener('click', async (e) => {
-        const tab = e.target.closest('.tab');
-        if (!tab) return;
-        const newUnit = tab.dataset.unit;
-        await setSetting('unit', newUnit);
-        await setSetting('barWeight', newUnit === 'kg' ? 20 : 45);
-        showToast(`Units set to ${newUnit}`, 'success');
-        window.dispatchEvent(new HashChangeEvent('hashchange'));
-    });
+  // Unit toggle
+  container.querySelector('#unit-tabs').addEventListener('click', async (e) => {
+    const tab = e.target.closest('.tab');
+    if (!tab) return;
+    const newUnit = tab.dataset.unit;
+    await setSetting('unit', newUnit);
+    await setSetting('barWeight', newUnit === 'kg' ? 20 : 45);
+    showToast(`Units set to ${newUnit}`, 'success');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
 
-    // Bar weight
-    container.querySelector('#bar-weight').addEventListener('change', async (e) => {
-        await setSetting('barWeight', parseFloat(e.target.value) || 45);
-        showToast('Bar weight saved', 'success');
-    });
+  // Bar weight
+  container.querySelector('#bar-weight').addEventListener('change', async (e) => {
+    await setSetting('barWeight', parseFloat(e.target.value) || 45);
+    showToast('Bar weight saved', 'success');
+  });
 
-    // Rest timer
-    container.querySelector('#rest-timer').addEventListener('change', async (e) => {
-        await setSetting('restTimer', parseInt(e.target.value) || 90);
-        showToast('Rest timer saved', 'success');
-    });
+  // Rest timer
+  container.querySelector('#rest-timer').addEventListener('change', async (e) => {
+    await setSetting('restTimer', parseInt(e.target.value) || 90);
+    showToast('Rest timer saved', 'success');
+  });
 
-    // Theme toggle
-    container.querySelector('#theme-tabs').addEventListener('click', async (e) => {
-        const tab = e.target.closest('.tab');
-        if (!tab) return;
-        const newTheme = tab.dataset.theme;
-        await setSetting('theme', newTheme);
-        if (newTheme === 'light') document.documentElement.setAttribute('data-theme', 'light');
-        else document.documentElement.removeAttribute('data-theme');
-        container.querySelector('#theme-tabs').querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.theme === newTheme));
-        showToast(`Theme: ${newTheme === 'dark' ? 'Compline' : 'Lauds'}`, 'success');
-    });
+  // Theme toggle
+  container.querySelector('#theme-tabs').addEventListener('click', async (e) => {
+    const tab = e.target.closest('.tab');
+    if (!tab) return;
+    const newTheme = tab.dataset.theme;
+    await setSetting('theme', newTheme);
+    if (newTheme === 'dark') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', newTheme);
+    container.querySelector('#theme-tabs').querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.theme === newTheme));
+    const names = { dark: 'Compline', amoled: 'Vigil', light: 'Lauds' };
+    showToast(`Theme: ${names[newTheme]}`, 'success');
+  });
 
-    // Plate inventory
-    container.querySelector('#plate-inputs').addEventListener('change', async (e) => {
-        const input = e.target.closest('[data-plate]');
-        if (!input) return;
-        plateInventory[input.dataset.plate] = parseInt(input.value) || 0;
-        await setSetting('plateInventory', { ...plateInventory });
-        showToast('Plates updated', 'success');
-    });
+  // Plate inventory
+  container.querySelector('#plate-inputs').addEventListener('change', async (e) => {
+    const input = e.target.closest('[data-plate]');
+    if (!input) return;
+    plateInventory[input.dataset.plate] = parseInt(input.value) || 0;
+    await setSetting('plateInventory', { ...plateInventory });
+    showToast('Plates updated', 'success');
+  });
 
-    // Export
-    container.querySelector('#export-btn').addEventListener('click', async () => {
-        try { await exportData(); showToast('Data exported!', 'success'); }
-        catch (e) { showToast('Export failed: ' + e.message, 'danger'); }
-    });
+  // Export
+  container.querySelector('#export-btn').addEventListener('click', async () => {
+    try { await exportData(); showToast('Data exported!', 'success'); }
+    catch (e) { showToast('Export failed: ' + e.message, 'danger'); }
+  });
 
-    // Import
-    container.querySelector('#import-input').addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        try { await importData(file, true); showToast('Data imported!', 'success'); window.dispatchEvent(new HashChangeEvent('hashchange')); }
-        catch (e) { showToast('Import failed: ' + e.message, 'danger'); }
-    });
+  // Import
+  container.querySelector('#import-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try { await importData(file, true); showToast('Data imported!', 'success'); window.dispatchEvent(new HashChangeEvent('hashchange')); }
+    catch (e) { showToast('Import failed: ' + e.message, 'danger'); }
+  });
 }
