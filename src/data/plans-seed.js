@@ -63,14 +63,13 @@ export const DEFAULT_PLANS = [
     },
     {
         name: 'Reddit PPL',
-        description: 'Push/Pull/Legs 6-day split. Great balance of compound and isolation work for intermediate lifters.',
+        description: 'Linear progression PPL 6-day split from r/Fitness. Alternates main lifts (Deadlift/Row on Pull, Bench/OHP on Push).',
         days: [
             {
-                name: 'Pull',
+                name: 'Pull A (Deadlift)',
                 exercises: [
-                    { exerciseName: 'Barbell Deadlift', sets: 1, reps: 5, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
-                    { exerciseName: 'Barbell Row', sets: 4, reps: 5, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
-                    { exerciseName: 'Pull-Up', sets: 3, reps: 8, increment: 0, incrementUnit: 'lb', deloadPercent: 0, deloadAfter: 0 },
+                    { exerciseName: 'Barbell Deadlift', sets: 1, reps: 5, increment: 10, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Lat Pulldown', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
                     { exerciseName: 'Seated Cable Row', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
                     { exerciseName: 'Face Pull', sets: 5, reps: 20, increment: 0, incrementUnit: 'lb', deloadPercent: 0, deloadAfter: 0 },
                     { exerciseName: 'Hammer Curl', sets: 4, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
@@ -78,12 +77,13 @@ export const DEFAULT_PLANS = [
                 ],
             },
             {
-                name: 'Push',
+                name: 'Push A (Bench)',
                 exercises: [
-                    { exerciseName: 'Barbell Bench Press', sets: 4, reps: 5, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
-                    { exerciseName: 'Overhead Press', sets: 4, reps: 5, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
-                    { exerciseName: 'Incline Barbell Bench Press', sets: 3, reps: 10, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Barbell Bench Press', sets: 5, reps: 5, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Overhead Press', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Incline Dumbbell Bench Press', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
                     { exerciseName: 'Tricep Pushdown', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Lateral Raise', sets: 3, reps: 20, increment: 0, incrementUnit: 'lb', deloadPercent: 0, deloadAfter: 0 },
                     { exerciseName: 'Overhead Tricep Extension', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
                     { exerciseName: 'Lateral Raise', sets: 3, reps: 20, increment: 0, incrementUnit: 'lb', deloadPercent: 0, deloadAfter: 0 },
                 ],
@@ -92,13 +92,46 @@ export const DEFAULT_PLANS = [
                 name: 'Legs',
                 exercises: [
                     { exerciseName: 'Barbell Back Squat', sets: 3, reps: 5, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
-                    { exerciseName: 'Romanian Deadlift', sets: 3, reps: 10, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Romanian Deadlift', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Leg Press', sets: 3, reps: 12, increment: 10, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Leg Curl', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Standing Calf Raise', sets: 5, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                ],
+            },
+            {
+                name: 'Pull B (Row)',
+                exercises: [
+                    { exerciseName: 'Barbell Row', sets: 5, reps: 5, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Pull-Up', sets: 3, reps: 12, increment: 0, incrementUnit: 'lb', deloadPercent: 0, deloadAfter: 0 },
+                    { exerciseName: 'Seated Cable Row', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Face Pull', sets: 5, reps: 20, increment: 0, incrementUnit: 'lb', deloadPercent: 0, deloadAfter: 0 },
+                    { exerciseName: 'Hammer Curl', sets: 4, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Dumbbell Curl', sets: 4, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                ],
+            },
+            {
+                name: 'Push B (OHP)',
+                exercises: [
+                    { exerciseName: 'Overhead Press', sets: 5, reps: 5, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Barbell Bench Press', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Incline Dumbbell Bench Press', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Tricep Pushdown', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Lateral Raise', sets: 3, reps: 20, increment: 0, incrementUnit: 'lb', deloadPercent: 0, deloadAfter: 0 },
+                    { exerciseName: 'Overhead Tricep Extension', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Lateral Raise', sets: 3, reps: 20, increment: 0, incrementUnit: 'lb', deloadPercent: 0, deloadAfter: 0 },
+                ],
+            },
+            {
+                name: 'Legs',
+                exercises: [
+                    { exerciseName: 'Barbell Back Squat', sets: 3, reps: 5, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
+                    { exerciseName: 'Romanian Deadlift', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
                     { exerciseName: 'Leg Press', sets: 3, reps: 12, increment: 10, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
                     { exerciseName: 'Leg Curl', sets: 3, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
                     { exerciseName: 'Standing Calf Raise', sets: 5, reps: 12, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 },
                 ],
             },
         ],
-        schedule: '6 days/week: Pull, Push, Legs, Pull, Push, Legs, Rest',
+        schedule: '6 days/week: Pull A, Push A, Legs, Pull B, Push B, Legs, Rest',
     },
 ];
