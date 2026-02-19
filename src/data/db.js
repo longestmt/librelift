@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'librelift';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance = null;
 
@@ -178,9 +178,11 @@ export async function setSetting(key, value) {
 // ---- Export / Import ----
 
 export async function exportAllData() {
-    const stores = ['exercises', 'plans', 'workouts', 'sets', 'bodyWeight', 'settings'];
+    const db = await openDB();
+    const allStores = ['exercises', 'plans', 'workouts', 'sets', 'bodyWeight', 'settings'];
     const data = { version: DB_VERSION, exportedAt: now(), stores: {} };
-    for (const name of stores) {
+    for (const name of allStores) {
+        if (!db.objectStoreNames.contains(name)) continue;
         const store = await getStore(name);
         data.stores[name] = await promisifyRequest(store.getAll());
     }
