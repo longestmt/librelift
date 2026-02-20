@@ -4,6 +4,8 @@ A libre, open-source lifting app — track workouts, progressive overload, and m
 
 Built with **Vite + vanilla JS + IndexedDB**. No frameworks, no lock-in.
 
+[Buy me a coffee :)](https://ko-fi.com/longestmt)
+
 <p align="center">
   <img src="assets/screenshots/active-workout-v2.png" width="300" alt="Active Workout in Dark Mode (Compline)"/>
   &nbsp;&nbsp;&nbsp;&nbsp;
