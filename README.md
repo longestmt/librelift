@@ -4,6 +4,12 @@ A libre, open-source lifting app — track workouts, progressive overload, and m
 
 Built with **Vite + vanilla JS + IndexedDB**. No frameworks, no lock-in.
 
+<p align="center">
+  <img src="assets/screenshots/workout-dark.png" width="300" alt="Active Workout in Dark Mode (Compline)"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/screenshots/history-light.png" width="300" alt="Workout History in Light Mode (Lauds)"/>
+</p>
+
 ## Features
 
 - **Workout Logging** — weight, reps, RPE per set with tap-to-complete
