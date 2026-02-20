@@ -35,6 +35,22 @@ export async function validateToken(token) {
     return user.login;
 }
 
+/** Find existing LibreLift gist in user's account */
+export async function discoverGist(token) {
+    const res = await fetch(GIST_API, {
+        headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' },
+    });
+    if (!res.ok) throw new Error('Could not fetch gists');
+    const gists = await res.json();
+    // Look for gist containing librelift-backup.json
+    const found = gists.find(g => g.files && g.files[GIST_FILE]);
+    if (found) {
+        await setSetting('githubGistId', found.id);
+        return found.id;
+    }
+    return null;
+}
+
 /** Push backup to GitHub Gist */
 export async function pushBackup() {
     const token = await getGistToken();
@@ -44,7 +60,10 @@ export async function pushBackup() {
     data.backedUpAt = new Date().toISOString();
     const content = JSON.stringify(data, null, 2);
 
-    const gistId = await getGistId();
+    let gistId = await getGistId();
+    if (!gistId) {
+        gistId = await discoverGist(token);
+    }
 
     if (gistId) {
         // Update existing gist
@@ -84,7 +103,10 @@ export async function pullBackup() {
     const token = await getGistToken();
     if (!token) throw new Error('No GitHub token configured');
 
-    const gistId = await getGistId();
+    let gistId = await getGistId();
+    if (!gistId) {
+        gistId = await discoverGist(token);
+    }
     if (!gistId) throw new Error('No backup found — push a backup first');
 
     const res = await fetch(`${GIST_API}/${gistId}`, {
