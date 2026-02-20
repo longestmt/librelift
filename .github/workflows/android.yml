@@ -40,12 +40,12 @@ jobs:
       run: ./gradlew assembleRelease
 
     - name: Sign APK
-      uses: r0adkll/sign-android-release@v1
+      uses: ilharp/sign-android-release@v1
       id: sign_app
       with:
-        releaseDirectory: android/app/build/outputs/apk/release
-        signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-        alias: librelift
+        releaseDir: android/app/build/outputs/apk/release
+        signingKey: ${{ secrets.KEYSTORE_BASE64 }}
+        keyAlias: librelift
         keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
         keyPassword: ${{ secrets.KEYSTORE_PASSWORD }}
 
