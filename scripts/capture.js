@@ -172,14 +172,13 @@ import puppeteer from 'puppeteer';
   await new Promise(r => setTimeout(r, 500));
 
   // Take screenshot 1: Workout View (Dark)
-  await page.screenshot({ path: 'assets/screenshots/workout-dark.png' });
+  await page.screenshot({ path: 'assets/screenshots/active-workout-v2.png' });
 
   // Switch to History tab natively via the nav route
   await page.click('#nav-data');
-  await new Promise(r => setTimeout(r, 500));
+  await new Promise(r => setTimeout(r, 1000));
 
   await page.evaluate(async () => {
-    window.location.hash = '#data'; // ensure we're there
     return new Promise((resolve, reject) => {
       const req = indexedDB.open('librelift');
       req.onsuccess = (e) => {
@@ -191,14 +190,13 @@ import puppeteer from 'puppeteer';
     });
   });
 
-  // Reload to apply light theme and load history 
+  // Reload to apply light theme and ensure history loads
   await page.reload({ waitUntil: 'networkidle0' });
-
-  // Click on the History Data tab once loaded
-  await page.evaluate(() => {
-    window.location.hash = '#data';
-  });
   await new Promise(r => setTimeout(r, 1000));
+
+  // Click on the Nav Data tab again just to be 100% sure we are on the data page after reload
+  await page.click('#nav-data');
+  await new Promise(r => setTimeout(r, 1500));
 
   // Scroll down slightly to make the chart visible and the heatmap prominent
   await page.evaluate(() => {
@@ -206,8 +204,8 @@ import puppeteer from 'puppeteer';
   });
   await new Promise(r => setTimeout(r, 500));
 
-  // Take screenshot 2: History View (Light)
-  await page.screenshot({ path: 'assets/screenshots/history-light.png' });
+  // Take screenshot 2: History View (Light) (saving directly to the new file name)
+  await page.screenshot({ path: 'assets/screenshots/history-heatmap-v2.png' });
 
   await browser.close();
 })();
