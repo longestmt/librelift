@@ -1,6 +1,6 @@
 {
   "name": "librelift",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A libre, FLOSS lifting app — track workouts, progressive overload, and more.",
   "private": true,
   "type": "module",

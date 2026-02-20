@@ -58,7 +58,17 @@ export async function pushBackup() {
 
     const data = await exportAllData();
     data.backedUpAt = new Date().toISOString();
-    const content = JSON.stringify(data, null, 2);
+
+    // Remove sensitive information from the backup data before pushing to Gist
+    if (data.stores && data.stores.settings) {
+        data.stores.settings = data.stores.settings.filter(
+            s => s.key !== 'githubPAT' && s.key !== 'githubGistId'
+        );
+    }
+
+    let content = JSON.stringify(data, null, 2);
+    // Bulletproof: ensure literal string of the token doesn't exist anywhere in the payload
+    content = content.split(token).join('HIDDEN_TOKEN');
 
     let gistId = await getGistId();
     if (!gistId) {
@@ -133,8 +143,17 @@ export async function pullBackup() {
 
 /** Restore from gist backup (replaces local data) */
 export async function restoreFromGist() {
+    // Preserve current credentials so restoring doesn't disconnect us
+    const token = await getGistToken();
+    const gistId = await getGistId();
+
     const data = await pullBackup();
     await importAllData(data, false);
+
+    // Restore them back to settings
+    if (token) await setGistToken(token);
+    if (gistId) await setSetting('githubGistId', gistId);
+
     return data;
 }
 

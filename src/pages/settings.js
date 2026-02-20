@@ -104,8 +104,9 @@ export async function renderSettingsPage(container) {
       <div class="card">
         <div class="card-title" style="margin-bottom:var(--sp-2)">About</div>
         <div class="text-sm text-secondary">
-          <strong>LibreLift</strong> v0.1.0<br>
+          <strong>LibreLift</strong> v0.1.1<br>
           A free/libre, open-source lifting app.<br>
+          <a href="https://github.com/tylerapf/librelift" target="_blank" style="color:var(--accent)">View Source Code on GitHub</a><br>
           Licensed under AGPL-3.0.<br><br>
           <span class="text-muted">Compline + Lauds themes inspired by
             <a href="https://github.com/joshuablais/compline" target="_blank" style="color:var(--accent)">joshuablais/compline</a>
