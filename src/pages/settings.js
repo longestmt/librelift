@@ -107,7 +107,7 @@ export async function renderSettingsPage(container) {
           <strong>LibreLift</strong> v0.1.1<br>
           A free/libre, open-source lifting app.<br>
           <a href="https://github.com/longestmt/librelift/" target="_blank" style="color:var(--accent)">View Source Code on GitHub</a><br>
-          <a href="https://ko-fi.com/longestmt" target="_blank" style="color:var(--accent)">Buy me a coffee :)</a><br>
+          <a href="https://ko-fi.com/longestmt" target="_blank" style="color:var(--accent)">Buy me a coffee ☕️</a><br>
           Licensed under AGPL-3.0.<br><br>
           <span class="text-muted">Compline + Lauds themes inspired by
             <a href="https://github.com/joshuablais/compline" target="_blank" style="color:var(--accent)">joshuablais/compline</a>
