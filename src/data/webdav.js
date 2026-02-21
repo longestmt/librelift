@@ -27,6 +27,29 @@ export async function setWebDavConfig(url, username, password) {
         url += '/';
     }
 
+    // Test the connection before saving
+    let res;
+    try {
+        res = await fetch(url, {
+            method: 'PROPFIND',
+            headers: {
+                'Authorization': getAuthHeader(username, password),
+                'Depth': '0'
+            }
+        });
+    } catch (e) {
+        if (e.message && e.message.includes('Failed to fetch')) {
+            throw new Error('Network Error (CORS, Mixed Content, or invalid SSL). Check browser console.');
+        }
+        throw new Error(`Failed to connect to server: ${e.message}`);
+    }
+
+    if (!res.ok) {
+        if (res.status === 401) throw new Error('Invalid username or app password (401 Unauthorized)');
+        if (res.status === 404) throw new Error('WebDAV endpoint not found (404). Check the URL path.');
+        throw new Error(`WebDAV Server Error: ${res.status} ${res.statusText}`);
+    }
+
     await setSetting('webdavUrl', url);
     await setSetting('webdavUsername', username);
     await setSetting('webdavPassword', password);

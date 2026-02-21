@@ -315,12 +315,17 @@ export async function renderSettingsPage(container) {
           return;
         }
 
+        const btn = webdavSection.querySelector('#webdav-connect');
         try {
+          btn.textContent = 'Connecting…';
+          btn.disabled = true;
           await setWebDavConfig(url, user, pass);
           showToast('WebDAV Config Saved', 'success');
           renderWebDavUI();
         } catch (e) {
           showToast(e.message, 'danger');
+          btn.textContent = 'Save WebDAV Config';
+          btn.disabled = false;
         }
       });
     } else {
