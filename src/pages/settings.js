@@ -228,24 +228,38 @@ export async function renderSettingsPage(container) {
           </div>
           <button class="btn btn-ghost btn-sm text-xs" id="gist-disconnect" style="color:var(--danger)">Disconnect GitHub</button>
         </div>`;
-      gistSection.querySelector('#gist-push').addEventListener('click', async () => {
+      gistSection.querySelector('#gist-push').addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const btn = gistSection.querySelector('#gist-push');
         try {
-          const btn = gistSection.querySelector('#gist-push');
-          btn.textContent = 'Pushing…'; btn.disabled = true;
+          btn.textContent = 'Pushing…';
+          btn.disabled = true;
           const result = await pushBackup();
           showToast(result.updated ? 'Backup updated!' : 'Backup created!', 'success');
-          renderGistUI();
-        } catch (e) { showToast('Backup failed: ' + e.message, 'danger'); renderGistUI(); }
+        } catch (err) {
+          showToast('Backup failed: ' + err.message, 'danger');
+        } finally {
+          btn.textContent = 'Push Backup';
+          btn.disabled = false;
+        }
       });
-      gistSection.querySelector('#gist-pull').addEventListener('click', async () => {
+      gistSection.querySelector('#gist-pull').addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         if (!confirm('This will replace all local data with the cloud backup. Continue?')) return;
+        const btn = gistSection.querySelector('#gist-pull');
         try {
-          const btn = gistSection.querySelector('#gist-pull');
-          btn.textContent = 'Restoring…'; btn.disabled = true;
+          btn.textContent = 'Restoring…';
+          btn.disabled = true;
           await restoreFromGist();
           showToast('Data restored from backup!', 'success');
           window.dispatchEvent(new HashChangeEvent('hashchange'));
-        } catch (e) { showToast('Restore failed: ' + e.message, 'danger'); renderGistUI(); }
+        } catch (err) {
+          showToast('Restore failed: ' + err.message, 'danger');
+          btn.textContent = 'Restore from Cloud';
+          btn.disabled = false;
+        }
       });
       gistSection.querySelector('#gist-disconnect').addEventListener('click', async () => {
         if (!confirm('Disconnect GitHub? Your backup gist will not be deleted.')) return;
@@ -307,15 +321,17 @@ export async function renderSettingsPage(container) {
       webdavSection.querySelector('#webdav-push').addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        const btn = webdavSection.querySelector('#webdav-push');
         try {
-          const btn = webdavSection.querySelector('#webdav-push');
-          btn.textContent = 'Pushing…'; btn.disabled = true;
+          btn.textContent = 'Pushing…';
+          btn.disabled = true;
           await pushToWebDav();
           showToast('Backup successfully pushed to WebDAV!', 'success');
-          renderWebDavUI();
         } catch (err) {
           showToast('Failed: ' + err.message, 'danger');
-          renderWebDavUI();
+        } finally {
+          btn.textContent = 'Push Backup';
+          btn.disabled = false;
         }
       });
 
@@ -323,15 +339,17 @@ export async function renderSettingsPage(container) {
         e.preventDefault();
         e.stopPropagation();
         if (!confirm('This will replace all local app data with the WebDAV backup. Proceed?')) return;
+        const btn = webdavSection.querySelector('#webdav-pull');
         try {
-          const btn = webdavSection.querySelector('#webdav-pull');
-          btn.textContent = 'Restoring…'; btn.disabled = true;
+          btn.textContent = 'Restoring…';
+          btn.disabled = true;
           await pullFromWebDav();
           showToast('Data restored from WebDAV backup!', 'success');
           window.dispatchEvent(new HashChangeEvent('hashchange'));
         } catch (err) {
           showToast('Restore Failed: ' + err.message, 'danger');
-          renderWebDavUI();
+          btn.textContent = 'Restore from Server';
+          btn.disabled = false;
         }
       });
 
