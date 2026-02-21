@@ -112,7 +112,7 @@ export async function renderSettingsPage(container) {
       <div class="card">
         <div class="card-title" style="margin-bottom:var(--sp-2)">About</div>
         <div class="text-sm text-secondary">
-          <strong>LibreLift</strong> v0.1.2<br>
+          <strong>LibreLift</strong> v0.1.3<br>
           A free/libre, open-source lifting app.<br>
           <a href="https://github.com/longestmt/librelift/" target="_blank" style="color:var(--accent)">View Source Code on GitHub</a><br>
           <a href="https://ko-fi.com/longestmt" target="_blank" style="color:var(--accent)">Buy me a coffee ☕️</a><br>
@@ -244,11 +244,20 @@ export async function renderSettingsPage(container) {
           btn.disabled = false;
         }
       });
+      let gistPullConfirm = false;
       gistSection.querySelector('#gist-pull').addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!confirm('This will replace all local data with the cloud backup. Continue?')) return;
         const btn = gistSection.querySelector('#gist-pull');
+        if (!gistPullConfirm) {
+          gistPullConfirm = true;
+          const oldText = btn.textContent;
+          btn.textContent = 'Tap to confirm';
+          btn.style.color = 'var(--danger)';
+          setTimeout(() => { gistPullConfirm = false; btn.textContent = oldText; btn.style.color = ''; }, 3000);
+          return;
+        }
+        btn.style.color = '';
         try {
           btn.textContent = 'Restoring…';
           btn.disabled = true;
@@ -261,8 +270,20 @@ export async function renderSettingsPage(container) {
           btn.disabled = false;
         }
       });
-      gistSection.querySelector('#gist-disconnect').addEventListener('click', async () => {
-        if (!confirm('Disconnect GitHub? Your backup gist will not be deleted.')) return;
+      let gistDisconnectConfirm = false;
+      gistSection.querySelector('#gist-disconnect').addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const btn = gistSection.querySelector('#gist-disconnect');
+        if (!gistDisconnectConfirm) {
+          gistDisconnectConfirm = true;
+          const oldText = btn.textContent;
+          btn.textContent = 'Tap to confirm disconnect';
+          setTimeout(() => { gistDisconnectConfirm = false; btn.textContent = oldText; }, 3000);
+          return;
+        }
+        btn.textContent = 'Disconnecting...';
+        btn.disabled = true;
         await disconnectGist();
         showToast('GitHub disconnected', 'info');
         renderGistUI();
@@ -335,11 +356,20 @@ export async function renderSettingsPage(container) {
         }
       });
 
+      let webdavPullConfirm = false;
       webdavSection.querySelector('#webdav-pull').addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!confirm('This will replace all local app data with the WebDAV backup. Proceed?')) return;
         const btn = webdavSection.querySelector('#webdav-pull');
+        if (!webdavPullConfirm) {
+          webdavPullConfirm = true;
+          const oldText = btn.textContent;
+          btn.textContent = 'Tap to confirm';
+          btn.style.color = 'var(--danger)';
+          setTimeout(() => { webdavPullConfirm = false; btn.textContent = oldText; btn.style.color = ''; }, 3000);
+          return;
+        }
+        btn.style.color = '';
         try {
           btn.textContent = 'Restoring…';
           btn.disabled = true;
@@ -353,12 +383,19 @@ export async function renderSettingsPage(container) {
         }
       });
 
+      let webdavDisconnectConfirm = false;
       webdavSection.querySelector('#webdav-disconnect').addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!confirm('Clear WebDAV Configuration?')) return;
-
         const btn = webdavSection.querySelector('#webdav-disconnect');
+        if (!webdavDisconnectConfirm) {
+          webdavDisconnectConfirm = true;
+          const oldText = btn.textContent;
+          btn.textContent = 'Tap to confirm clear';
+          setTimeout(() => { webdavDisconnectConfirm = false; btn.textContent = oldText; }, 3000);
+          return;
+        }
+
         btn.textContent = 'Clearing…';
         btn.disabled = true;
 
