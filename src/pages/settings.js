@@ -112,7 +112,7 @@ export async function renderSettingsPage(container) {
       <div class="card">
         <div class="card-title" style="margin-bottom:var(--sp-2)">About</div>
         <div class="text-sm text-secondary">
-          <strong>LibreLift</strong> v0.1.1<br>
+          <strong>LibreLift</strong> v0.1.2<br>
           A free/libre, open-source lifting app.<br>
           <a href="https://github.com/longestmt/librelift/" target="_blank" style="color:var(--accent)">View Source Code on GitHub</a><br>
           <a href="https://ko-fi.com/longestmt" target="_blank" style="color:var(--accent)">Buy me a coffee ☕️</a><br>
@@ -304,20 +304,24 @@ export async function renderSettingsPage(container) {
           <button class="btn btn-ghost btn-sm text-xs" id="webdav-disconnect" style="color:var(--danger)">Clear Configuration</button>
         </div>`;
 
-      webdavSection.querySelector('#webdav-push').addEventListener('click', async () => {
+      webdavSection.querySelector('#webdav-push').addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         try {
           const btn = webdavSection.querySelector('#webdav-push');
           btn.textContent = 'Pushing…'; btn.disabled = true;
           await pushToWebDav();
           showToast('Backup successfully pushed to WebDAV!', 'success');
           renderWebDavUI();
-        } catch (e) {
-          showToast('Failed: ' + e.message, 'danger');
+        } catch (err) {
+          showToast('Failed: ' + err.message, 'danger');
           renderWebDavUI();
         }
       });
 
-      webdavSection.querySelector('#webdav-pull').addEventListener('click', async () => {
+      webdavSection.querySelector('#webdav-pull').addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         if (!confirm('This will replace all local app data with the WebDAV backup. Proceed?')) return;
         try {
           const btn = webdavSection.querySelector('#webdav-pull');
@@ -325,14 +329,21 @@ export async function renderSettingsPage(container) {
           await pullFromWebDav();
           showToast('Data restored from WebDAV backup!', 'success');
           window.dispatchEvent(new HashChangeEvent('hashchange'));
-        } catch (e) {
-          showToast('Restore Failed: ' + e.message, 'danger');
+        } catch (err) {
+          showToast('Restore Failed: ' + err.message, 'danger');
           renderWebDavUI();
         }
       });
 
-      webdavSection.querySelector('#webdav-disconnect').addEventListener('click', async () => {
+      webdavSection.querySelector('#webdav-disconnect').addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         if (!confirm('Clear WebDAV Configuration?')) return;
+
+        const btn = webdavSection.querySelector('#webdav-disconnect');
+        btn.textContent = 'Clearing…';
+        btn.disabled = true;
+
         await disconnectWebDav();
         showToast('WebDAV Disconnected', 'info');
         renderWebDavUI();
