@@ -7,6 +7,7 @@ import { exportData, importData } from '../data/io.js';
 import { showToast } from '../components/toast.js';
 import { STANDARD_PLATES_LB, STANDARD_PLATES_KG } from '../engine/progression.js';
 import { getGistToken, setGistToken, validateToken, pushBackup, pullBackup, restoreFromGist, getBackupInfo, disconnectGist } from '../data/gist-backup.js';
+import { getWebDavConfig, setWebDavConfig, pushToWebDav, pullFromWebDav, disconnectWebDav } from '../data/webdav.js';
 
 export async function renderSettingsPage(container) {
   const unit = await getSetting('unit', 'lb');
@@ -95,9 +96,16 @@ export async function renderSettingsPage(container) {
 
       <!-- GitHub Backup -->
       <div class="card">
-        <div class="card-title" style="margin-bottom:var(--sp-2)">Cloud Backup</div>
+        <div class="card-title" style="margin-bottom:var(--sp-2)">GitHub Cloud Backup</div>
         <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">Sync your data to a private GitHub Gist</div>
         <div id="gist-section"></div>
+      </div>
+
+      <!-- WebDAV Backup -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:var(--sp-2)">WebDAV Sync</div>
+        <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">Self-host your backups via Nextcloud, ownCloud, or any WebDAV server.</div>
+        <div id="webdav-section"></div>
       </div>
 
       <!-- About -->
@@ -248,4 +256,88 @@ export async function renderSettingsPage(container) {
     }
   }
   renderGistUI();
+
+  // WebDAV Backup Logic
+  const webdavSection = container.querySelector('#webdav-section');
+  async function renderWebDavUI() {
+    const config = await getWebDavConfig();
+    if (!config.url || !config.username || !config.password) {
+      webdavSection.innerHTML = `
+        <div class="flex flex-col gap-2">
+          <input class="input" type="url" id="webdav-url" placeholder="https://nextcloud.example.com/remote.php/webdav/LibreLift/" style="font-size:var(--text-sm)" />
+          <input class="input" type="text" id="webdav-user" placeholder="Username" style="font-size:var(--text-sm)" />
+          <input class="input" type="password" id="webdav-pass" placeholder="App Password / Token" style="font-size:var(--text-sm)" />
+          <button class="btn btn-primary btn-full btn-sm" id="webdav-connect" style="margin-top:var(--sp-2)">Save WebDAV Config</button>
+        </div>`;
+
+      webdavSection.querySelector('#webdav-connect').addEventListener('click', async () => {
+        const url = webdavSection.querySelector('#webdav-url').value.trim();
+        const user = webdavSection.querySelector('#webdav-user').value.trim();
+        const pass = webdavSection.querySelector('#webdav-pass').value.trim();
+
+        if (!url || !user || !pass) {
+          showToast('Please fill out all fields', 'warning');
+          return;
+        }
+
+        try {
+          await setWebDavConfig(url, user, pass);
+          showToast('WebDAV Config Saved', 'success');
+          renderWebDavUI();
+        } catch (e) {
+          showToast(e.message, 'danger');
+        }
+      });
+    } else {
+      webdavSection.innerHTML = `
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm font-medium text-success">● Connected</div>
+              <div class="text-xs text-muted" style="word-break: break-all;">${config.url}</div>
+            </div>
+          </div>
+          <div class="flex gap-2" style="margin-top:var(--sp-2)">
+            <button class="btn btn-primary btn-sm" id="webdav-push" style="flex:1">Push Backup</button>
+            <button class="btn btn-secondary btn-sm" id="webdav-pull" style="flex:1">Restore from Server</button>
+          </div>
+          <button class="btn btn-ghost btn-sm text-xs" id="webdav-disconnect" style="color:var(--danger)">Clear Configuration</button>
+        </div>`;
+
+      webdavSection.querySelector('#webdav-push').addEventListener('click', async () => {
+        try {
+          const btn = webdavSection.querySelector('#webdav-push');
+          btn.textContent = 'Pushing…'; btn.disabled = true;
+          await pushToWebDav();
+          showToast('Backup successfully pushed to WebDAV!', 'success');
+          renderWebDavUI();
+        } catch (e) {
+          showToast('Failed: ' + e.message, 'danger');
+          renderWebDavUI();
+        }
+      });
+
+      webdavSection.querySelector('#webdav-pull').addEventListener('click', async () => {
+        if (!confirm('This will replace all local app data with the WebDAV backup. Proceed?')) return;
+        try {
+          const btn = webdavSection.querySelector('#webdav-pull');
+          btn.textContent = 'Restoring…'; btn.disabled = true;
+          await pullFromWebDav();
+          showToast('Data restored from WebDAV backup!', 'success');
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+        } catch (e) {
+          showToast('Restore Failed: ' + e.message, 'danger');
+          renderWebDavUI();
+        }
+      });
+
+      webdavSection.querySelector('#webdav-disconnect').addEventListener('click', async () => {
+        if (!confirm('Clear WebDAV Configuration?')) return;
+        await disconnectWebDav();
+        showToast('WebDAV Disconnected', 'info');
+        renderWebDavUI();
+      });
+    }
+  }
+  renderWebDavUI();
 }
