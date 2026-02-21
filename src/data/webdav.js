@@ -17,10 +17,9 @@ export async function getWebDavConfig() {
 
 /** Set WebDAV Credentials */
 export async function setWebDavConfig(url, username, password) {
-    // Basic validation to enforce HTTPS (unless localhost or IP address for local network testing)
-    const isIpAddress = /^https?:\/\/(?:[0-9]{1,3}\.){3}[0-9]{1,3}/.test(url);
-    if (url && !url.startsWith('https://') && !url.includes('localhost') && !isIpAddress) {
-        throw new Error('WebDAV URL must use HTTPS for remote servers.');
+    // Ensure URL has a valid protocol
+    if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+        throw new Error('WebDAV URL must start with http:// or https://');
     }
 
     // Ensure URL ends with a slash
@@ -63,14 +62,22 @@ export async function pushToWebDav() {
     const jsonStr = JSON.stringify(data, null, 2);
     const targetUrl = `${config.url}librelift_backup.json`;
 
-    const res = await fetch(targetUrl, {
-        method: 'PUT',
-        headers: {
-            'Authorization': getAuthHeader(config.username, config.password),
-            'Content-Type': 'application/json'
-        },
-        body: jsonStr
-    });
+    let res;
+    try {
+        res = await fetch(targetUrl, {
+            method: 'PUT',
+            headers: {
+                'Authorization': getAuthHeader(config.username, config.password),
+                'Content-Type': 'application/json'
+            },
+            body: jsonStr
+        });
+    } catch (e) {
+        if (e.message && e.message.includes('Failed to fetch')) {
+            throw new Error('Network Error (CORS, Mixed Content, or invalid SSL). Check browser console.');
+        }
+        throw e;
+    }
 
     if (!res.ok) {
         throw new Error(`WebDAV HTTP Error: ${res.status} ${res.statusText}`);
@@ -88,15 +95,23 @@ export async function pullFromWebDav() {
 
     const targetUrl = `${config.url}librelift_backup.json`;
 
-    const res = await fetch(targetUrl, {
-        method: 'GET',
-        headers: {
-            'Authorization': getAuthHeader(config.username, config.password),
-            'Accept': 'application/json'
-        },
-        // Prevent aggressive browser caching of the backup file
-        cache: 'no-store'
-    });
+    let res;
+    try {
+        res = await fetch(targetUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': getAuthHeader(config.username, config.password),
+                'Accept': 'application/json'
+            },
+            // Prevent aggressive browser caching of the backup file
+            cache: 'no-store'
+        });
+    } catch (e) {
+        if (e.message && e.message.includes('Failed to fetch')) {
+            throw new Error('Network Error (CORS, Mixed Content, or invalid SSL). Check browser console.');
+        }
+        throw e;
+    }
 
     if (res.status === 404) {
         throw new Error('Backup file not found on the server. Try pushing first.');
