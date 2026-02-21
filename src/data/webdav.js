@@ -17,9 +17,10 @@ export async function getWebDavConfig() {
 
 /** Set WebDAV Credentials */
 export async function setWebDavConfig(url, username, password) {
-    // Basic validation to enforce HTTPS (unless localhost for testing)
-    if (url && !url.startsWith('https://') && !url.includes('localhost')) {
-        throw new Error('WebDAV URL must use HTTPS for security.');
+    // Basic validation to enforce HTTPS (unless localhost or IP address for local network testing)
+    const isIpAddress = /^https?:\/\/(?:[0-9]{1,3}\.){3}[0-9]{1,3}/.test(url);
+    if (url && !url.startsWith('https://') && !url.includes('localhost') && !isIpAddress) {
+        throw new Error('WebDAV URL must use HTTPS for remote servers.');
     }
 
     // Ensure URL ends with a slash
