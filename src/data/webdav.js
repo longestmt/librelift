@@ -3,7 +3,7 @@
  * Saves/restores full app data to a private WebDAV folder (e.g. Nextcloud)
  */
 
-import { getAllData, importData } from './db.js';
+import { exportAllData, importAllData } from './db.js';
 import { getSetting, setSetting } from './db.js';
 
 /** Get WebDAV Credentials */
@@ -51,7 +51,7 @@ export async function pushToWebDav() {
         throw new Error('WebDAV is not fully configured.');
     }
 
-    const data = await getAllData();
+    const data = await exportAllData();
     // Exclude the credentials themselves from the backup file
     if (data.settings) {
         data.settings = data.settings.filter(s =>
@@ -107,7 +107,7 @@ export async function pullFromWebDav() {
 
     try {
         const jsonData = await res.json();
-        await importData(jsonData);
+        await importAllData(jsonData);
         return true;
     } catch (e) {
         throw new Error('Failed to parse the WebDAV backup file. It may be corrupted.');
