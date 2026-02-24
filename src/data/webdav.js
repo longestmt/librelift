@@ -5,6 +5,7 @@
 
 import { exportAllData, importAllData } from './db.js';
 import { getSetting, setSetting } from './db.js';
+import { Capacitor } from '@capacitor/core';
 
 /** Get WebDAV Credentials */
 export async function getWebDavConfig() {
@@ -30,13 +31,22 @@ export async function setWebDavConfig(url, username, password) {
     // Test the connection before saving
     let res;
     try {
-        res = await fetch(url, {
+        const options = {
+            url,
             method: 'PROPFIND',
             headers: {
                 'Authorization': getAuthHeader(username, password),
                 'Depth': '0'
             }
-        });
+        };
+
+        if (Capacitor.isNativePlatform() && Capacitor.Plugins.CapacitorHttp) {
+            res = await Capacitor.Plugins.CapacitorHttp.request(options);
+            // CapacitorHttp normalizes to status instead of ok
+            res.ok = res.status >= 200 && res.status < 300;
+        } else {
+            res = await fetch(options.url, options);
+        }
     } catch (e) {
         if (e.message && e.message.includes('Failed to fetch')) {
             throw new Error('Network Error (CORS, Mixed Content, or invalid SSL). Check browser console.');
@@ -47,7 +57,7 @@ export async function setWebDavConfig(url, username, password) {
     if (!res.ok) {
         if (res.status === 401) throw new Error('Invalid username or app password (401 Unauthorized)');
         if (res.status === 404) throw new Error('WebDAV endpoint not found (404). Check the URL path.');
-        throw new Error(`WebDAV Server Error: ${res.status} ${res.statusText}`);
+        throw new Error(`WebDAV Server Error: ${res.status} ${res.statusText || res.status}`);
     }
 
     await setSetting('webdavUrl', url);
@@ -87,14 +97,22 @@ export async function pushToWebDav() {
 
     let res;
     try {
-        res = await fetch(targetUrl, {
+        const options = {
+            url: targetUrl,
             method: 'PUT',
             headers: {
                 'Authorization': getAuthHeader(config.username, config.password),
                 'Content-Type': 'application/json'
             },
-            body: jsonStr
-        });
+            data: jsonStr
+        };
+
+        if (Capacitor.isNativePlatform() && Capacitor.Plugins.CapacitorHttp) {
+            res = await Capacitor.Plugins.CapacitorHttp.request(options);
+            res.ok = res.status >= 200 && res.status < 300;
+        } else {
+            res = await fetch(options.url, { ...options, body: options.data });
+        }
     } catch (e) {
         if (e.message && e.message.includes('Failed to fetch')) {
             throw new Error('Network Error (CORS, Mixed Content, or invalid SSL). Check browser console.');
@@ -103,7 +121,7 @@ export async function pushToWebDav() {
     }
 
     if (!res.ok) {
-        throw new Error(`WebDAV HTTP Error: ${res.status} ${res.statusText}`);
+        throw new Error(`WebDAV HTTP Error: ${res.status} ${res.statusText || res.status}`);
     }
 
     return true;
@@ -120,15 +138,22 @@ export async function pullFromWebDav() {
 
     let res;
     try {
-        res = await fetch(targetUrl, {
+        const options = {
+            url: targetUrl,
             method: 'GET',
             headers: {
                 'Authorization': getAuthHeader(config.username, config.password),
-                'Accept': 'application/json'
-            },
-            // Prevent aggressive browser caching of the backup file
-            cache: 'no-store'
-        });
+                'Accept': 'application/json',
+                'Cache-Control': 'no-store'
+            }
+        };
+
+        if (Capacitor.isNativePlatform() && Capacitor.Plugins.CapacitorHttp) {
+            res = await Capacitor.Plugins.CapacitorHttp.request(options);
+            res.ok = res.status >= 200 && res.status < 300;
+        } else {
+            res = await fetch(options.url, { ...options, cache: 'no-store' });
+        }
     } catch (e) {
         if (e.message && e.message.includes('Failed to fetch')) {
             throw new Error('Network Error (CORS, Mixed Content, or invalid SSL). Check browser console.');
@@ -141,12 +166,17 @@ export async function pullFromWebDav() {
     }
 
     if (!res.ok) {
-        throw new Error(`WebDAV HTTP Error: ${res.status} ${res.statusText}`);
+        throw new Error(`WebDAV HTTP Error: ${res.status} ${res.statusText || res.status}`);
     }
 
     try {
-        const jsonData = await res.json();
-        await importAllData(jsonData);
+        // CapacitorHttp parses JSON natively, fetch does not
+        const jsonData = (Capacitor.isNativePlatform() && Capacitor.Plugins.CapacitorHttp) ? res.data : await res.json();
+
+        // Sometimes CapacitorHttp returns a string if it couldn't parse it
+        const parsedData = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+
+        await importAllData(parsedData);
         return true;
     } catch (e) {
         throw new Error('Failed to parse the WebDAV backup file. It may be corrupted.');

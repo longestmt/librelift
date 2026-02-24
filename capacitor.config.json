@@ -1,5 +1,13 @@
 {
   "appId": "com.longestmt.librelift",
   "appName": "LibreLift",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "cleartext": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
 }
