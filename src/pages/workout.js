@@ -3,7 +3,7 @@
  */
 
 import { getAll, getById, getByIndex, put, putMany, getSetting, setSetting } from '../data/db.js';
-import { suggestNextWeight } from '../engine/progression.js';
+import { suggestNextWeight, getExerciseHistory } from '../engine/progression.js';
 import { createTimerElement, startTimer, stopTimer } from '../components/timer.js';
 import { createPlateCalculator } from '../components/plate-calc.js';
 import { openModal, closeModal } from '../components/modal.js';
@@ -211,6 +211,7 @@ function renderWorkoutExercises(container, unit) {
       <div class="card-header" style="cursor:pointer" data-toggle="${ei}">
         <div><div class="card-title">${ex.exerciseName}</div><div class="flex gap-2" style="margin-top:2px">${reasonBadge}<span class="prev-hint">${prevText}</span></div></div>
         <div class="flex items-center gap-1">
+          <button class="btn btn-ghost btn-icon" data-show-history="${ei}" title="History" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
           <button class="btn btn-ghost btn-icon" data-swap-ex="${ei}" title="Swap exercise" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></button>
           <button class="btn btn-ghost btn-icon" data-show-plates="${ei}" title="Plates" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><line x1="6" y1="12" x2="18" y2="12"/></svg></button>
         </div>
@@ -232,7 +233,15 @@ function renderSetRow(set, si, ei) {
 
 function setupWorkoutEvents(container, unit) {
     container.addEventListener('click', async (e) => {
-        // Check plates button FIRST (it's inside card-header, must not bubble to toggle)
+        // Check buttons FIRST (they are inside card-header, must not bubble to toggle)
+        const historyBtn = e.target.closest('[data-show-history]');
+        if (historyBtn) {
+            e.stopPropagation();
+            const ei = parseInt(historyBtn.dataset.showHistory);
+            showExerciseHistoryModal(ei, unit);
+            return;
+        }
+
         const platesBtn = e.target.closest('[data-show-plates]');
         if (platesBtn) { e.stopPropagation(); const ei = parseInt(platesBtn.dataset.showPlates); const w = activeWorkout.exercises[ei].sets[0]?.weight || 0; const el = await createPlateCalculator(w); const body = openModal('', { title: `Plates for ${w}${unit}` }); body.innerHTML = ''; body.appendChild(el); return; }
 
@@ -482,14 +491,106 @@ async function showSwapPicker(ei, exContainer, unit) {
                     if (planEx) {
                         planEx.exerciseId = newId;
                         planEx.exerciseName = newName;
+                        await put('plans', plan);
                     }
-                    await put('plans', plan);
                 }
             }
         }
 
         closeModal();
         renderWorkoutExercises(exContainer, unit);
-        showToast(`Swapped to ${newName}${mode === 'permanent' ? ' (updated plan)' : ''}`, 'success');
+        showToast(`Swapped to ${newName}`, 'success');
     });
+}
+
+async function showExerciseHistoryModal(ei, unit) {
+    const ex = activeWorkout.exercises[ei];
+    if (!ex || !ex.exerciseId) return;
+
+    const history = await getExerciseHistory(ex.exerciseId);
+    const body = openModal('', { title: `${ex.exerciseName} History` });
+
+    if (!history.length) {
+        body.innerHTML = '<div class="text-sm text-muted" style="text-align:center;padding:var(--sp-4)">No recorded history yet.</div>';
+        return;
+    }
+
+    const fmtDate = (iso) => {
+        if (!iso) return 'Unknown';
+        const d = new Date(iso);
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
+    body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:var(--sp-2);max-height:60vh;overflow-y:auto;padding-right:var(--sp-2)">
+      ${history.slice().reverse().map(h => `
+        <div class="card" style="padding:var(--sp-3);display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="font-bold">${h.weight}${unit} × ${h.reps}</div>
+            <div class="text-xs text-muted" style="margin-top:2px">${fmtDate(h.date)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="text-xs text-muted">Volume</div>
+            <div class="font-medium" style="color:var(--accent)">${h.volume >= 1000 ? `${(h.volume / 1000).toFixed(1)}k` : h.volume}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+export function openWorkoutPage(container) {
+    activeWorkout = null;
+    if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+
+    container.innerHTML = `
+    <div class="flex items-center justify-between" style="margin-bottom:var(--sp-4)">
+      <h1 class="page-title" style="font-size:var(--text-xl)">Start Workout</h1>
+    </div>
+    <div class="flex flex-col gap-3">
+      <button class="btn btn-primary btn-full shadow-sm" id="start-empty-btn" style="height:48px;font-size:var(--text-base)">+ Start Empty Workout</button>
+    </div>
+    <div style="margin-top:var(--sp-5);margin-bottom:var(--sp-3)">
+      <h2 class="font-bold text-sm">Active Plans</h2>
+    </div>
+    <div id="workout-plan-list" class="flex flex-col gap-3"></div>
+  `;
+
+    const planList = container.querySelector('#workout-plan-list');
+    getAll('plans').then(plans => {
+        if (!plans.length) {
+            planList.innerHTML = '<div class="card"><div class="text-sm text-muted" style="text-align:center">No active plans. Add a plan from the Plans tab.</div></div>';
+            return;
+        }
+
+        planList.innerHTML = plans.map(p => {
+            const dayIndex = p.currentDayIndex || 0;
+            const day = p.days[dayIndex];
+            return `<div class="card" style="cursor:pointer" data-plan-id="${p.id}">
+        <div class="card-header">
+          <div><div class="card-title">${p.name}</div><div class="text-xs text-muted" style="margin-top:2px">Up next: ${day ? day.name : 'Workout'}</div></div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </div>`;
+        }).join('');
+    });
+
+    container.querySelector('#start-empty-btn').addEventListener('click', () => {
+        startEmptyWorkout();
+        renderActiveWorkout(container, 'lb'); // Default to lb, UI will adapt on save
+    });
+
+    planList.addEventListener('click', async (e) => {
+        const card = e.target.closest('[data-plan-id]');
+        if (!card) return;
+        const plan = await getById('plans', card.dataset.planId);
+        if (plan) {
+            const unit = await getSetting('distanceUnit', 'lb');
+            await startWorkoutFromPlan(plan, unit);
+            renderActiveWorkout(container, unit);
+        }
+    });
+
+    // Handle back button / unload to confirm leaving active workout
+    const cleanup = () => { if (workoutInterval) clearInterval(workoutInterval); };
+    return cleanup;
 }
