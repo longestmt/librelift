@@ -322,7 +322,7 @@ async function finishWorkout(container, unit) {
         const w = await put('workouts', { id: activeWorkout.id, date: new Date().toISOString().split('T')[0], planId: activeWorkout.planId, planName: activeWorkout.planName, dayName: activeWorkout.dayName, notes: activeWorkout.notes, durationSec: dur, exerciseCount: activeWorkout.exercises.length });
 
         const allSets = [];
-        for (const ex of activeWorkout.exercises) for (const s of ex.sets) allSets.push({ id: s.id, workoutId: w.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed });
+        for (const ex of activeWorkout.exercises) for (const s of ex.sets) allSets.push({ id: s.id, workoutId: w.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed, notes: ex.notes });
         if (allSets.length > 0) await putMany('sets', allSets);
 
         const vol = allSets.reduce((s, r) => s + (r.completed ? r.weight * r.reps : 0), 0);
@@ -524,15 +524,18 @@ async function showExerciseHistoryModal(ei, unit) {
     body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:var(--sp-2);max-height:60vh;overflow-y:auto;padding-right:var(--sp-2)">
       ${history.slice().reverse().map(h => `
-        <div class="card" style="padding:var(--sp-3);display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div class="font-bold">${h.weight}${unit} × ${h.reps}</div>
-            <div class="text-xs text-muted" style="margin-top:2px">${fmtDate(h.date)}</div>
+        <div class="card" style="padding:var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-2)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div class="font-bold">${h.weight}${unit} × ${h.reps}</div>
+              <div class="text-xs text-muted" style="margin-top:2px">${fmtDate(h.date)}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="text-xs text-muted">Volume</div>
+              <div class="font-medium" style="color:var(--accent)">${h.volume >= 1000 ? `${(h.volume / 1000).toFixed(1)}k` : h.volume}</div>
+            </div>
           </div>
-          <div style="text-align:right">
-            <div class="text-xs text-muted">Volume</div>
-            <div class="font-medium" style="color:var(--accent)">${h.volume >= 1000 ? `${(h.volume / 1000).toFixed(1)}k` : h.volume}</div>
-          </div>
+          ${h.notes ? `<div class="text-sm text-muted" style="padding:var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic;margin-top:4px">${h.notes}</div>` : ''}
         </div>
       `).join('')}
     </div>`;
