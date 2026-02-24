@@ -102,12 +102,14 @@ export async function getExerciseHistory(exerciseId) {
     const history = [];
     for (const [workoutId, wSets] of workoutMap) {
         const best = wSets.reduce((a, b) => (a.weight || 0) > (b.weight || 0) ? a : b);
+        const notes = wSets.find(s => s.notes)?.notes || '';
         history.push({
             workoutId,
             date: best.createdAt,
             weight: best.weight || 0,
             reps: best.reps || 0,
             volume: wSets.reduce((sum, s) => sum + (s.weight || 0) * (s.reps || 0), 0),
+            notes
         });
     }
 
