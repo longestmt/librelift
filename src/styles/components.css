@@ -578,15 +578,15 @@ textarea.input {
 }
 
 .heatmap-cell.level-1 {
-    background: rgba(184, 196, 184, .25);
+    background: color-mix(in srgb, var(--success) 30%, var(--bg-elevated));
 }
 
 .heatmap-cell.level-2 {
-    background: rgba(184, 196, 184, .50);
+    background: color-mix(in srgb, var(--success) 55%, var(--bg-elevated));
 }
 
 .heatmap-cell.level-3 {
-    background: rgba(184, 196, 184, .75);
+    background: color-mix(in srgb, var(--success) 80%, var(--bg-elevated));
 }
 
 .heatmap-cell.level-4 {
