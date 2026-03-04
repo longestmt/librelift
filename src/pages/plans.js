@@ -222,20 +222,31 @@ function renderPlanCard(plan) {
 
 function showPlanDetail(plan, allExercises) {
   const body = openModal('', { title: plan.name });
+  const nextDayIndex = plan.currentDayIndex || 0;
 
   body.innerHTML = `
     ${plan.description ? `<p class="text-sm text-secondary" style="margin-bottom:var(--sp-4)">${plan.description}</p>` : ''}
     ${plan.schedule ? `<p class="text-xs text-muted" style="margin-bottom:var(--sp-4)">${plan.schedule}</p>` : ''}
 
     <div class="flex flex-col gap-4">
-      ${(plan.days || []).map((day, di) => `
+      ${(plan.days || []).map((day, di) => {
+    const isNext = di === nextDayIndex;
+    return `
         <div>
-          <div class="font-semibold" style="margin-bottom:var(--sp-2); color:var(--accent)">${day.name}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-2)">
+            <div style="display:flex;align-items:center;gap:var(--sp-2)">
+              <span class="font-semibold" style="color:var(--accent)">${day.name}</span>
+              ${isNext ? '<span class="badge badge-success" style="font-size:10px">Up next</span>' : ''}
+            </div>
+            <button class="btn btn-ghost btn-icon" data-start-day="${di}" title="Start ${day.name}" style="width:32px;height:32px;color:var(--accent)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </button>
+          </div>
           <div class="flex flex-col gap-1">
             ${(day.exercises || []).map(ex => {
-    const exercise = allExercises.find(e => e.id === ex.exerciseId);
-    const name = exercise?.name || ex.exerciseName || 'Unknown';
-    return `
+      const exercise = allExercises.find(e => e.id === ex.exerciseId);
+      const name = exercise?.name || ex.exerciseName || 'Unknown';
+      return `
                 <div class="list-item" style="cursor:default">
                   <div style="flex:1">
                     <div class="text-sm font-medium">${name}</div>
@@ -243,10 +254,11 @@ function showPlanDetail(plan, allExercises) {
                   </div>
                 </div>
               `;
-  }).join('')}
+    }).join('')}
           </div>
         </div>
-      `).join('<div class="divider"></div>')}
+      `;
+  }).join('<div class="divider"></div>')}
     </div>
 
     <div style="margin-top:var(--sp-6)">
@@ -258,8 +270,16 @@ function showPlanDetail(plan, allExercises) {
 
   body.querySelector('#start-plan-workout').addEventListener('click', () => {
     closeModal();
-    // Navigate to workout with this plan
     window.location.hash = `/workout?planId=${plan.id}`;
+  });
+
+  body.addEventListener('click', (e) => {
+    const dayBtn = e.target.closest('[data-start-day]');
+    if (dayBtn) {
+      const dayIndex = parseInt(dayBtn.dataset.startDay);
+      closeModal();
+      window.location.hash = `/workout?planId=${plan.id}&dayIndex=${dayIndex}`;
+    }
   });
 }
 

@@ -108,8 +108,10 @@ export async function renderWorkoutPage(container) {
   if (planId) {
     const plan = await getById('plans', planId);
     if (plan) {
+      const dayIndexParam = params.get('dayIndex');
+      const overrideDayIndex = dayIndexParam !== null ? parseInt(dayIndexParam) : null;
       await setSetting('lastUsedPlanId', plan.id);
-      await startWorkoutFromPlan(plan, unit);
+      await startWorkoutFromPlan(plan, unit, overrideDayIndex);
       renderActiveWorkout(container, unit);
     }
   }
@@ -123,8 +125,8 @@ function getLastWorkoutSets(allSets) {
   return sorted[0]?.[1] || null;
 }
 
-async function startWorkoutFromPlan(plan, unit) {
-  const dayIndex = plan.currentDayIndex || 0;
+async function startWorkoutFromPlan(plan, unit, overrideDayIndex = null) {
+  const dayIndex = overrideDayIndex !== null ? overrideDayIndex : (plan.currentDayIndex || 0);
   const day = plan.days[dayIndex];
   const exercises = await getAll('exercises');
   const workoutExercises = [];
