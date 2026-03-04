@@ -112,7 +112,10 @@ export async function renderSettingsPage(container) {
       <div class="card">
         <div class="card-title" style="margin-bottom:var(--sp-2)">About</div>
         <div class="text-sm text-secondary">
-          <strong>LibreLift</strong> v0.1.5<br>
+          <div class="flex items-center justify-between" style="margin-bottom:var(--sp-1)">
+            <div><strong>LibreLift</strong> v0.1.5</div>
+            <button class="btn btn-ghost text-xs" id="check-updates-btn" style="padding:var(--sp-1) var(--sp-2)">Check for Updates</button>
+          </div>
           A free/libre, open-source lifting app.<br>
           <a href="https://github.com/longestmt/librelift/" target="_blank" style="color:var(--accent)">View Source Code on GitHub</a><br>
           <a href="https://ko-fi.com/longestmt" target="_blank" style="color:var(--accent)">Buy me a coffee ☕️</a><br>
@@ -411,4 +414,34 @@ export async function renderSettingsPage(container) {
     }
   }
   renderWebDavUI();
+
+  // App Updates
+  container.querySelector('#check-updates-btn')?.addEventListener('click', async (e) => {
+    const btn = e.target;
+    const oldText = btn.textContent;
+    btn.textContent = 'Checking...';
+    btn.disabled = true;
+
+    try {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          await registration.update();
+          showToast('Checked for updates. If available, they will apply on next restart.', 'success');
+        } else {
+          showToast('App is not installed as PWA or no service worker found.', 'info');
+        }
+      } else {
+        showToast('Service workers are not supported in this browser.', 'warning');
+      }
+    } catch (err) {
+      showToast('Check failed: ' + err.message, 'danger');
+    } finally {
+      setTimeout(() => {
+        btn.textContent = oldText;
+        btn.disabled = false;
+      }, 1500);
+    }
+  });
+
 }
