@@ -10,6 +10,7 @@ import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 import { uuid } from '../data/db.js';
 import { saveSession, loadSession, clearSession } from '../data/session.js';
+import { hapticLight, hapticMedium, hapticHeavy, hapticSuccess } from '../utils/haptics.js';
 
 let activeWorkout = null;
 let workoutInterval = null;
