@@ -6,6 +6,7 @@ import { getAll, put, softDelete, getById } from '../data/db.js';
 import { DEFAULT_PLANS } from '../data/plans-seed.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
+import { hapticLight, hapticMedium } from '../utils/haptics.js';
 
 export async function renderPlansPage(container) {
   const plans = await getAll('plans');
@@ -58,6 +59,7 @@ export async function renderPlansPage(container) {
     templateBtns.addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-template]');
       if (!btn) return;
+      hapticLight();
       const idx = parseInt(btn.dataset.template);
       const template = DEFAULT_PLANS[idx];
 
@@ -96,6 +98,7 @@ export async function renderPlansPage(container) {
 
     const deleteBtn = e.target.closest('.delete-plan-btn');
     if (deleteBtn) {
+      hapticLight();
       if (confirm('Delete this plan?')) {
         await softDelete('plans', planId);
         showToast('Plan deleted', 'info');
@@ -105,7 +108,10 @@ export async function renderPlansPage(container) {
     }
 
     const plan = await getById('plans', planId);
-    if (plan) showPlanDetail(plan, exercises);
+    if (plan) {
+      hapticLight();
+      showPlanDetail(plan, exercises);
+    }
   });
 
   // FAB for new plan
@@ -269,6 +275,7 @@ function showPlanDetail(plan, allExercises) {
   `;
 
   body.querySelector('#start-plan-workout').addEventListener('click', () => {
+    hapticMedium();
     closeModal();
     window.location.hash = `/workout?planId=${plan.id}`;
   });
@@ -276,6 +283,7 @@ function showPlanDetail(plan, allExercises) {
   body.addEventListener('click', (e) => {
     const dayBtn = e.target.closest('[data-start-day]');
     if (dayBtn) {
+      hapticMedium();
       const dayIndex = parseInt(dayBtn.dataset.startDay);
       closeModal();
       window.location.hash = `/workout?planId=${plan.id}&dayIndex=${dayIndex}`;

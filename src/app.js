@@ -10,6 +10,7 @@ import { renderDataPage } from './pages/data.js';
 import { renderExercisesPage } from './pages/exercises.js';
 import { renderPlansPage } from './pages/plans.js';
 import { renderSettingsPage } from './pages/settings.js';
+import { hapticLight } from './utils/haptics.js';
 
 const ROUTES = {
   '/workout': { render: renderWorkoutPage, label: 'Workout', icon: 'dumbbell' },
@@ -88,6 +89,7 @@ function renderShell() {
   nav.addEventListener('click', (e) => {
     const item = e.target.closest('.nav-item');
     if (item) {
+      hapticLight();
       const route = item.dataset.route;
       window.location.hash = route;
     }

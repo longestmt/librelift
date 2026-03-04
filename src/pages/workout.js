@@ -126,6 +126,7 @@ function getLastWorkoutSets(allSets) {
 }
 
 async function startWorkoutFromPlan(plan, unit, overrideDayIndex = null) {
+  hapticMedium();
   const dayIndex = overrideDayIndex !== null ? overrideDayIndex : (plan.currentDayIndex || 0);
   const day = plan.days[dayIndex];
   const exercises = await getAll('exercises');
@@ -271,14 +272,28 @@ function setupWorkoutEvents(container, unit) {
       // Simple toggle: tap = done, tap again = undo
       if (!set.completed) {
         set.completed = true;
-        check.classList.add('completed');
+
+        // Haptics & Animation
+        hapticHeavy();
+
+        // We force a reflow here so the animation restarts if they untoggle/retoggle quickly
+        check.classList.remove('set-completed');
+        void check.offsetWidth;
+
+        check.classList.add('completed', 'set-completed');
         check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+
+        // Automatically remove the animation class after it plays to leave it clean
+        setTimeout(() => check.classList.remove('set-completed'), 300);
+
         saveSession(activeWorkout);
         const rest = await getSetting('restTimer', 90);
         startTimer(rest);
       } else {
         set.completed = false;
-        check.classList.remove('completed');
+
+        hapticLight();
+        check.classList.remove('completed', 'set-completed');
         check.innerHTML = '';
         saveSession(activeWorkout);
       }
@@ -326,6 +341,7 @@ function updateWorkoutClock(el) {
 
 async function finishWorkout(container, unit) {
   if (!activeWorkout) return;
+  hapticSuccess();
   clearSession();
 
   try {

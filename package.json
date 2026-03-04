@@ -17,6 +17,7 @@
   "license": "AGPL-3.0-or-later",
   "dependencies": {
     "@capacitor/android": "^8.1.0",
-    "@capacitor/core": "^8.1.0"
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/haptics": "^8.0.1"
   }
 }

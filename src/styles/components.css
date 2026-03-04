@@ -777,3 +777,23 @@ textarea.input {
         right: var(--sp-6);
     }
 }
+
+/* ---------- Animations ---------- */
+@keyframes pop-success {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.02);
+        background-color: var(--success);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+.set-completed {
+    animation: pop-success 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
