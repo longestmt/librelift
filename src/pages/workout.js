@@ -56,7 +56,7 @@ export async function renderWorkoutPage(container) {
   container.innerHTML = `
     <div class="page-header" style="text-align:center; padding-top:var(--sp-8)">
       <h1 class="page-title">Ready to Lift?</h1>
-      <p class="page-subtitle">${activePlan ? 'Start your next workout' : 'Start a workout from a plan or go freestyle'}</p>
+      <p class="page-subtitle">${activePlan ? 'Start your next workout' : 'Choose a program or go freestyle'}</p>
     </div>
     <div class="flex flex-col gap-3" style="max-width:400px; margin:var(--sp-6) auto 0">
       ${activePlan ? renderPlanButton(activePlan, true) : ''}
