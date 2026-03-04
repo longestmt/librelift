@@ -177,7 +177,20 @@ export async function pullFromWebDav() {
         // Sometimes CapacitorHttp returns a string if it couldn't parse it
         const parsedData = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
 
+        // Preserve credentials before import (importAllData wipes all settings)
+        const savedConfig = await getWebDavConfig();
+        const githubPAT = await getSetting('githubPAT', null);
+        const githubGistId = await getSetting('githubGistId', null);
+
         await importAllData(parsedData);
+
+        // Restore credentials that were stripped from the backup
+        if (savedConfig.url) await setSetting('webdavUrl', savedConfig.url);
+        if (savedConfig.username) await setSetting('webdavUsername', savedConfig.username);
+        if (savedConfig.password) await setSetting('webdavPassword', savedConfig.password);
+        if (githubPAT) await setSetting('githubPAT', githubPAT);
+        if (githubGistId) await setSetting('githubGistId', githubGistId);
+
         return true;
     } catch (e) {
         throw new Error('Failed to parse the WebDAV backup file. It may be corrupted.');
