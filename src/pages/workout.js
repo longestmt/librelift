@@ -243,7 +243,15 @@ function renderWorkoutExercises(container, unit) {
 function renderSetRow(set, si, ei) {
   const cls = set.completed ? 'completed' : '';
   const icon = set.completed ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '';
-  return `<div class="set-row"><span class="set-number">${set.setNumber}</span><input class="input-inline" type="number" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal"/><input class="input-inline" type="number" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric"/><input class="input-inline" type="number" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—"/><button class="set-check ${cls}" data-ei="${ei}" data-si="${si}">${icon}</button></div>`;
+  const locked = set.completed ? 'readonly' : '';
+  const lockedCls = set.completed ? 'locked' : '';
+  return `<div class="set-row">
+    <span class="set-number">${set.setNumber}</span>
+    <input class="input-inline ${lockedCls}" type="number" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal" ${locked}/>
+    <input class="input-inline ${lockedCls}" type="number" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric" ${locked}/>
+    <input class="input-inline ${lockedCls}" type="number" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—" ${locked}/>
+    <button class="set-check ${cls}" data-ei="${ei}" data-si="${si}">${icon}</button>
+  </div>`;
 }
 
 function setupWorkoutEvents(container, unit) {
@@ -269,34 +277,42 @@ function setupWorkoutEvents(container, unit) {
     const check = e.target.closest('.set-check');
     if (check) {
       const ei = parseInt(check.dataset.ei), si = parseInt(check.dataset.si);
-      const set = activeWorkout.exercises[ei].sets[si];
+      const ex = activeWorkout.exercises[ei];
+      const set = ex.sets[si];
       // Simple toggle: tap = done, tap again = undo
       if (!set.completed) {
         set.completed = true;
 
+        // Propagate weight to subsequent uncompleted sets with the old suggested weight
+        const oldWeight = set.weight;
+        for (let i = si + 1; i < ex.sets.length; i++) {
+          if (!ex.sets[i].completed) {
+            ex.sets[i].weight = oldWeight;
+            ex.sets[i].reps = set.reps;
+          }
+        }
+
         // Haptics & Animation
         hapticHeavy();
 
-        // We force a reflow here so the animation restarts if they untoggle/retoggle quickly
-        check.classList.remove('set-completed');
-        void check.offsetWidth;
-
-        check.classList.add('completed', 'set-completed');
-        check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
-
-        // Automatically remove the animation class after it plays to leave it clean
-        setTimeout(() => check.classList.remove('set-completed'), 500);
-
         saveSession(activeWorkout);
+        renderWorkoutExercises(container, unit);
+
+        // Trigger animation on the newly rendered check button
+        const newCheck = container.querySelector(`.set-check[data-ei="${ei}"][data-si="${si}"]`);
+        if (newCheck) {
+          newCheck.classList.add('set-completed');
+          setTimeout(() => newCheck.classList.remove('set-completed'), 500);
+        }
+
         const rest = await getSetting('restTimer', 90);
         startTimer(rest);
       } else {
         set.completed = false;
 
         hapticLight();
-        check.classList.remove('completed', 'set-completed');
-        check.innerHTML = '';
         saveSession(activeWorkout);
+        renderWorkoutExercises(container, unit);
       }
       return;
     }
