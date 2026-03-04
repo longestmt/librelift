@@ -9,42 +9,51 @@ import { createPlateCalculator } from '../components/plate-calc.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 import { uuid } from '../data/db.js';
+import { saveSession, loadSession, clearSession } from '../data/session.js';
 
 let activeWorkout = null;
 let workoutInterval = null;
 
 export async function renderWorkoutPage(container) {
-    const unit = await getSetting('unit', 'lb');
-    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-    const planId = params.get('planId');
+  const unit = await getSetting('unit', 'lb');
+  const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+  const planId = params.get('planId');
 
-    if (activeWorkout) {
-        renderActiveWorkout(container, unit);
-        return;
+  // Restore a saved session if the in-memory state was lost (e.g. app was closed)
+  if (!activeWorkout) {
+    const saved = loadSession();
+    if (saved) {
+      activeWorkout = saved;
     }
+  }
 
-    const plans = await getAll('plans');
-    const lastUsedId = await getSetting('lastUsedPlanId', null);
+  if (activeWorkout) {
+    renderActiveWorkout(container, unit);
+    return;
+  }
 
-    // Sort: last-used plan first, then others
-    const activePlan = plans.find(p => p.id === lastUsedId) || plans[0] || null;
-    const otherPlans = plans.filter(p => p !== activePlan);
+  const plans = await getAll('plans');
+  const lastUsedId = await getSetting('lastUsedPlanId', null);
 
-    const renderPlanButton = (plan, prominent) => {
-        const nextDay = plan.days?.[plan.currentDayIndex || 0];
-        if (prominent) {
-            return `<button class="card card-clickable" data-start-plan="${plan.id}" style="text-align:left;border:1px solid var(--accent);font-family:var(--font-sans);width:100%;cursor:pointer">
+  // Sort: last-used plan first, then others
+  const activePlan = plans.find(p => p.id === lastUsedId) || plans[0] || null;
+  const otherPlans = plans.filter(p => p !== activePlan);
+
+  const renderPlanButton = (plan, prominent) => {
+    const nextDay = plan.days?.[plan.currentDayIndex || 0];
+    if (prominent) {
+      return `<button class="card card-clickable" data-start-plan="${plan.id}" style="text-align:left;border:1px solid var(--accent);font-family:var(--font-sans);width:100%;cursor:pointer">
           <div class="card-header"><div><div class="card-title" style="font-size:var(--text-lg)">${plan.name}</div>
           ${nextDay ? `<div class="text-sm text-accent" style="margin-top:4px">Next: ${nextDay.name}</div>` : ''}
           </div><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></button>`;
-        }
-        return `<button class="card card-clickable" data-start-plan="${plan.id}" style="text-align:left;border:none;font-family:var(--font-sans);width:100%;cursor:pointer;padding:var(--sp-2) var(--sp-3);opacity:0.85">
+    }
+    return `<button class="card card-clickable" data-start-plan="${plan.id}" style="text-align:left;border:none;font-family:var(--font-sans);width:100%;cursor:pointer;padding:var(--sp-2) var(--sp-3);opacity:0.85">
           <div class="card-header"><div><div class="card-title text-sm">${plan.name}</div>
           ${nextDay ? `<div class="text-xs text-muted">Next: ${nextDay.name}</div>` : ''}
           </div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></button>`;
-    };
+  };
 
-    container.innerHTML = `
+  container.innerHTML = `
     <div class="page-header" style="text-align:center; padding-top:var(--sp-8)">
       <h1 class="page-title">Ready to Lift?</h1>
       <p class="page-subtitle">${activePlan ? 'Start your next workout' : 'Start a workout from a plan or go freestyle'}</p>
@@ -67,82 +76,84 @@ export async function renderWorkoutPage(container) {
       </button>
     </div>`;
 
-    // Toggle other plans
-    container.querySelector('#toggle-other-plans')?.addEventListener('click', () => {
-        const el = container.querySelector('#other-plans');
-        const label = container.querySelector('#toggle-other-label');
-        if (el.style.display === 'none') { el.style.display = ''; label.textContent = 'Switch Program ▴'; }
-        else { el.style.display = 'none'; label.textContent = 'Switch Program ▾'; }
-    });
+  // Toggle other plans
+  container.querySelector('#toggle-other-plans')?.addEventListener('click', () => {
+    const el = container.querySelector('#other-plans');
+    const label = container.querySelector('#toggle-other-label');
+    if (el.style.display === 'none') { el.style.display = ''; label.textContent = 'Switch Program ▴'; }
+    else { el.style.display = 'none'; label.textContent = 'Switch Program ▾'; }
+  });
 
-    container.addEventListener('click', async (e) => {
-        const planBtn = e.target.closest('[data-start-plan]');
-        if (planBtn) {
-            const plan = await getById('plans', planBtn.dataset.startPlan);
-            if (plan) {
-                await setSetting('lastUsedPlanId', plan.id);
-                await startWorkoutFromPlan(plan, unit);
-                renderActiveWorkout(container, unit);
-            }
-        }
-    });
-
-    container.querySelector('#start-empty-workout')?.addEventListener('click', async () => {
-        startEmptyWorkout();
+  container.addEventListener('click', async (e) => {
+    const planBtn = e.target.closest('[data-start-plan]');
+    if (planBtn) {
+      const plan = await getById('plans', planBtn.dataset.startPlan);
+      if (plan) {
+        await setSetting('lastUsedPlanId', plan.id);
+        await startWorkoutFromPlan(plan, unit);
         renderActiveWorkout(container, unit);
-    });
-
-    container.querySelector('#pick-a-plan')?.addEventListener('click', () => {
-        window.location.hash = '/plans';
-    });
-
-    if (planId) {
-        const plan = await getById('plans', planId);
-        if (plan) {
-            await setSetting('lastUsedPlanId', plan.id);
-            await startWorkoutFromPlan(plan, unit);
-            renderActiveWorkout(container, unit);
-        }
+      }
     }
+  });
+
+  container.querySelector('#start-empty-workout')?.addEventListener('click', async () => {
+    startEmptyWorkout();
+    renderActiveWorkout(container, unit);
+  });
+
+  container.querySelector('#pick-a-plan')?.addEventListener('click', () => {
+    window.location.hash = '/plans';
+  });
+
+  if (planId) {
+    const plan = await getById('plans', planId);
+    if (plan) {
+      await setSetting('lastUsedPlanId', plan.id);
+      await startWorkoutFromPlan(plan, unit);
+      renderActiveWorkout(container, unit);
+    }
+  }
 }
 
 function getLastWorkoutSets(allSets) {
-    if (!allSets.length) return null;
-    const map = new Map();
-    for (const s of allSets) { if (!map.has(s.workoutId)) map.set(s.workoutId, []); map.get(s.workoutId).push(s); }
-    const sorted = [...map.entries()].sort((a, b) => (b[1][0].createdAt || '').localeCompare(a[1][0].createdAt || ''));
-    return sorted[0]?.[1] || null;
+  if (!allSets.length) return null;
+  const map = new Map();
+  for (const s of allSets) { if (!map.has(s.workoutId)) map.set(s.workoutId, []); map.get(s.workoutId).push(s); }
+  const sorted = [...map.entries()].sort((a, b) => (b[1][0].createdAt || '').localeCompare(a[1][0].createdAt || ''));
+  return sorted[0]?.[1] || null;
 }
 
 async function startWorkoutFromPlan(plan, unit) {
-    const dayIndex = plan.currentDayIndex || 0;
-    const day = plan.days[dayIndex];
-    const exercises = await getAll('exercises');
-    const workoutExercises = [];
+  const dayIndex = plan.currentDayIndex || 0;
+  const day = plan.days[dayIndex];
+  const exercises = await getAll('exercises');
+  const workoutExercises = [];
 
-    for (const ex of day.exercises) {
-        const exercise = exercises.find(e => e.id === ex.exerciseId);
-        const suggestion = ex.exerciseId ? await suggestNextWeight(ex.exerciseId, ex, unit) : { weight: 0, reason: 'first-time' };
-        const prevSets = ex.exerciseId ? await getByIndex('sets', 'exerciseId', ex.exerciseId) : [];
-        const lastSets = getLastWorkoutSets(prevSets);
-        const sets = [];
-        for (let i = 0; i < ex.sets; i++) {
-            sets.push({ id: uuid(), setNumber: i + 1, targetReps: ex.reps, weight: suggestion.weight, reps: ex.reps, completed: false, failed: false, rpe: null });
-        }
-        workoutExercises.push({ exerciseId: ex.exerciseId, exerciseName: exercise?.name || ex.exerciseName || 'Unknown', config: ex, sets, suggestedWeight: suggestion.weight, suggestionReason: suggestion.reason, previousPerformance: lastSets, notes: '', collapsed: false });
+  for (const ex of day.exercises) {
+    const exercise = exercises.find(e => e.id === ex.exerciseId);
+    const suggestion = ex.exerciseId ? await suggestNextWeight(ex.exerciseId, ex, unit) : { weight: 0, reason: 'first-time' };
+    const prevSets = ex.exerciseId ? await getByIndex('sets', 'exerciseId', ex.exerciseId) : [];
+    const lastSets = getLastWorkoutSets(prevSets);
+    const sets = [];
+    for (let i = 0; i < ex.sets; i++) {
+      sets.push({ id: uuid(), setNumber: i + 1, targetReps: ex.reps, weight: suggestion.weight, reps: ex.reps, completed: false, failed: false, rpe: null });
     }
+    workoutExercises.push({ exerciseId: ex.exerciseId, exerciseName: exercise?.name || ex.exerciseName || 'Unknown', config: ex, sets, suggestedWeight: suggestion.weight, suggestionReason: suggestion.reason, previousPerformance: lastSets, notes: '', collapsed: false });
+  }
 
-    activeWorkout = { id: uuid(), planId: plan.id, planName: plan.name, dayName: day.name, dayIndex, startTime: Date.now(), exercises: workoutExercises, notes: '' };
-    plan.currentDayIndex = (dayIndex + 1) % plan.days.length;
-    await put('plans', plan);
+  activeWorkout = { id: uuid(), planId: plan.id, planName: plan.name, dayName: day.name, dayIndex, startTime: Date.now(), exercises: workoutExercises, notes: '' };
+  saveSession(activeWorkout);
+  plan.currentDayIndex = (dayIndex + 1) % plan.days.length;
+  await put('plans', plan);
 }
 
 function startEmptyWorkout() {
-    activeWorkout = { id: uuid(), planId: null, planName: null, dayName: 'Freestyle', dayIndex: 0, startTime: Date.now(), exercises: [], notes: '' };
+  activeWorkout = { id: uuid(), planId: null, planName: null, dayName: 'Freestyle', dayIndex: 0, startTime: Date.now(), exercises: [], notes: '' };
+  saveSession(activeWorkout);
 }
 
 function renderActiveWorkout(container, unit) {
-    container.innerHTML = `
+  container.innerHTML = `
     <div class="flex items-center justify-between" style="margin-bottom:var(--sp-4)">
       <div><h1 class="page-title" style="font-size:var(--text-xl)">${activeWorkout.dayName || 'Workout'}</h1>
       ${activeWorkout.planName ? `<div class="text-xs text-muted">${activeWorkout.planName}</div>` : ''}</div>
@@ -157,57 +168,57 @@ function renderActiveWorkout(container, unit) {
       <textarea class="input" id="workout-notes" rows="2" placeholder="How's the session going?">${activeWorkout.notes}</textarea></div></div>
     <div style="margin-top:var(--sp-4)"><button class="btn btn-secondary btn-full" id="add-exercise-btn">+ Add Exercise</button></div>`;
 
-    const exContainer = container.querySelector('#workout-exercises');
+  const exContainer = container.querySelector('#workout-exercises');
 
-    // Timer bar appended to body so it's not trapped in a hidden container
-    const timerEl = createTimerElement();
-    document.body.appendChild(timerEl);
+  // Timer bar appended to body so it's not trapped in a hidden container
+  const timerEl = createTimerElement();
+  document.body.appendChild(timerEl);
 
-    // Workout clock with pause
-    let clockPaused = false;
-    let pausedElapsed = 0;
-    const clockEl = container.querySelector('#workout-clock');
-    updateWorkoutClock(clockEl);
-    workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
+  // Workout clock with pause
+  let clockPaused = false;
+  let pausedElapsed = 0;
+  const clockEl = container.querySelector('#workout-clock');
+  updateWorkoutClock(clockEl);
+  workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
 
-    clockEl.addEventListener('click', () => {
-        if (clockPaused) {
-            // Resume: adjust startTime to account for paused duration
-            activeWorkout.startTime = Date.now() - (pausedElapsed * 1000);
-            clockPaused = false;
-            clockEl.style.opacity = '1';
-            workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
-        } else {
-            // Pause: save elapsed and stop interval
-            pausedElapsed = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
-            clockPaused = true;
-            clockEl.style.opacity = '0.5';
-            if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
-        }
-    });
+  clockEl.addEventListener('click', () => {
+    if (clockPaused) {
+      // Resume: adjust startTime to account for paused duration
+      activeWorkout.startTime = Date.now() - (pausedElapsed * 1000);
+      clockPaused = false;
+      clockEl.style.opacity = '1';
+      workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
+    } else {
+      // Pause: save elapsed and stop interval
+      pausedElapsed = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
+      clockPaused = true;
+      clockEl.style.opacity = '0.5';
+      if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+    }
+  });
 
-    container.querySelector('#workout-notes').addEventListener('input', (e) => { activeWorkout.notes = e.target.value; });
+  container.querySelector('#workout-notes').addEventListener('input', (e) => { activeWorkout.notes = e.target.value; saveSession(activeWorkout); });
 
-    renderWorkoutExercises(exContainer, unit);
+  renderWorkoutExercises(exContainer, unit);
 
-    // Event listeners set up ONCE here (not in renderWorkoutExercises which re-runs)
-    setupWorkoutEvents(exContainer, unit);
+  // Event listeners set up ONCE here (not in renderWorkoutExercises which re-runs)
+  setupWorkoutEvents(exContainer, unit);
 
-    container.querySelector('#add-exercise-btn').addEventListener('click', async () => {
-        const exercises = await getAll('exercises');
-        showExercisePicker(exercises, exContainer, unit);
-    });
+  container.querySelector('#add-exercise-btn').addEventListener('click', async () => {
+    const exercises = await getAll('exercises');
+    showExercisePicker(exercises, exContainer, unit);
+  });
 
-    container.querySelector('#finish-workout-btn').addEventListener('click', () => finishWorkout(container, unit));
-    container.querySelector('#cancel-workout-btn').addEventListener('click', () => cancelWorkout(container, unit));
+  container.querySelector('#finish-workout-btn').addEventListener('click', () => finishWorkout(container, unit));
+  container.querySelector('#cancel-workout-btn').addEventListener('click', () => cancelWorkout(container, unit));
 }
 
 function renderWorkoutExercises(container, unit) {
-    container.innerHTML = activeWorkout.exercises.map((ex, ei) => {
-        const prevText = ex.previousPerformance ? `Last: ${ex.previousPerformance[0]?.weight || 0}${unit} × ${ex.previousPerformance[0]?.reps || 0}` : 'First time';
-        const reasonBadge = ex.suggestionReason === 'increment' ? '<span class="badge badge-success">↑ Up</span>' : ex.suggestionReason === 'deload' ? '<span class="badge badge-danger">↓ Deload</span>' : '';
+  container.innerHTML = activeWorkout.exercises.map((ex, ei) => {
+    const prevText = ex.previousPerformance ? `Last: ${ex.previousPerformance[0]?.weight || 0}${unit} × ${ex.previousPerformance[0]?.reps || 0}` : 'First time';
+    const reasonBadge = ex.suggestionReason === 'increment' ? '<span class="badge badge-success">↑ Up</span>' : ex.suggestionReason === 'deload' ? '<span class="badge badge-danger">↓ Deload</span>' : '';
 
-        return `<div class="card" data-ei="${ei}">
+    return `<div class="card" data-ei="${ei}">
       <div class="card-header" style="cursor:pointer" data-toggle="${ei}">
         <div><div class="card-title">${ex.exerciseName}</div><div class="flex gap-2" style="margin-top:2px">${reasonBadge}<span class="prev-hint">${prevText}</span></div></div>
         <div class="flex items-center gap-1">
@@ -222,118 +233,123 @@ function renderWorkoutExercises(container, unit) {
         <div class="flex gap-2" style="margin-top:var(--sp-2)"><button class="btn btn-ghost text-sm" data-add-set="${ei}" style="flex:1">+ Set</button>${ex.sets.length > 1 ? `<button class="btn btn-ghost text-sm text-danger" data-remove-set="${ei}">− Set</button>` : ''}<button class="btn btn-ghost text-sm" data-ex-note="${ei}" title="Note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button></div>
         ${ex.notes ? `<div class="text-xs text-muted" style="margin-top:var(--sp-1);padding:var(--sp-1) var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic">${ex.notes}</div>` : ''}
       </div></div>`;
-    }).join('');
+  }).join('');
 }
 
 function renderSetRow(set, si, ei) {
-    const cls = set.completed ? 'completed' : '';
-    const icon = set.completed ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '';
-    return `<div class="set-row"><span class="set-number">${set.setNumber}</span><input class="input-inline" type="number" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal"/><input class="input-inline" type="number" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric"/><input class="input-inline" type="number" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—"/><button class="set-check ${cls}" data-ei="${ei}" data-si="${si}">${icon}</button></div>`;
+  const cls = set.completed ? 'completed' : '';
+  const icon = set.completed ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '';
+  return `<div class="set-row"><span class="set-number">${set.setNumber}</span><input class="input-inline" type="number" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal"/><input class="input-inline" type="number" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric"/><input class="input-inline" type="number" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—"/><button class="set-check ${cls}" data-ei="${ei}" data-si="${si}">${icon}</button></div>`;
 }
 
 function setupWorkoutEvents(container, unit) {
-    container.addEventListener('click', async (e) => {
-        // Check buttons FIRST (they are inside card-header, must not bubble to toggle)
-        const historyBtn = e.target.closest('[data-show-history]');
-        if (historyBtn) {
-            e.stopPropagation();
-            const ei = parseInt(historyBtn.dataset.showHistory);
-            showExerciseHistoryModal(ei, unit);
-            return;
-        }
+  container.addEventListener('click', async (e) => {
+    // Check buttons FIRST (they are inside card-header, must not bubble to toggle)
+    const historyBtn = e.target.closest('[data-show-history]');
+    if (historyBtn) {
+      e.stopPropagation();
+      const ei = parseInt(historyBtn.dataset.showHistory);
+      showExerciseHistoryModal(ei, unit);
+      return;
+    }
 
-        const platesBtn = e.target.closest('[data-show-plates]');
-        if (platesBtn) { e.stopPropagation(); const ei = parseInt(platesBtn.dataset.showPlates); const w = activeWorkout.exercises[ei].sets[0]?.weight || 0; const el = await createPlateCalculator(w); const body = openModal('', { title: `Plates for ${w}${unit}` }); body.innerHTML = ''; body.appendChild(el); return; }
+    const platesBtn = e.target.closest('[data-show-plates]');
+    if (platesBtn) { e.stopPropagation(); const ei = parseInt(platesBtn.dataset.showPlates); const w = activeWorkout.exercises[ei].sets[0]?.weight || 0; const el = await createPlateCalculator(w); const body = openModal('', { title: `Plates for ${w}${unit}` }); body.innerHTML = ''; body.appendChild(el); return; }
 
-        const swapBtn = e.target.closest('[data-swap-ex]');
-        if (swapBtn) { e.stopPropagation(); const ei = parseInt(swapBtn.dataset.swapEx); showSwapPicker(ei, container, unit); return; }
+    const swapBtn = e.target.closest('[data-swap-ex]');
+    if (swapBtn) { e.stopPropagation(); const ei = parseInt(swapBtn.dataset.swapEx); showSwapPicker(ei, container, unit); return; }
 
-        const toggle = e.target.closest('[data-toggle]');
-        if (toggle) { const ei = parseInt(toggle.dataset.toggle); activeWorkout.exercises[ei].collapsed = !activeWorkout.exercises[ei].collapsed; renderWorkoutExercises(container, unit); return; }
+    const toggle = e.target.closest('[data-toggle]');
+    if (toggle) { const ei = parseInt(toggle.dataset.toggle); activeWorkout.exercises[ei].collapsed = !activeWorkout.exercises[ei].collapsed; saveSession(activeWorkout); renderWorkoutExercises(container, unit); return; }
 
-        const check = e.target.closest('.set-check');
-        if (check) {
-            const ei = parseInt(check.dataset.ei), si = parseInt(check.dataset.si);
-            const set = activeWorkout.exercises[ei].sets[si];
-            // Simple toggle: tap = done, tap again = undo
-            if (!set.completed) {
-                set.completed = true;
-                check.classList.add('completed');
-                check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
-                const rest = await getSetting('restTimer', 90);
-                startTimer(rest);
-            } else {
-                set.completed = false;
-                check.classList.remove('completed');
-                check.innerHTML = '';
-            }
-            return;
-        }
+    const check = e.target.closest('.set-check');
+    if (check) {
+      const ei = parseInt(check.dataset.ei), si = parseInt(check.dataset.si);
+      const set = activeWorkout.exercises[ei].sets[si];
+      // Simple toggle: tap = done, tap again = undo
+      if (!set.completed) {
+        set.completed = true;
+        check.classList.add('completed');
+        check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+        saveSession(activeWorkout);
+        const rest = await getSetting('restTimer', 90);
+        startTimer(rest);
+      } else {
+        set.completed = false;
+        check.classList.remove('completed');
+        check.innerHTML = '';
+        saveSession(activeWorkout);
+      }
+      return;
+    }
 
-        const removeSet = e.target.closest('[data-remove-set]');
-        if (removeSet) { const ei = parseInt(removeSet.dataset.removeSet); const ex = activeWorkout.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); ex.sets.forEach((s, i) => s.setNumber = i + 1); renderWorkoutExercises(container, unit); } return; }
+    const removeSet = e.target.closest('[data-remove-set]');
+    if (removeSet) { const ei = parseInt(removeSet.dataset.removeSet); const ex = activeWorkout.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); ex.sets.forEach((s, i) => s.setNumber = i + 1); saveSession(activeWorkout); renderWorkoutExercises(container, unit); } return; }
 
-        const addSet = e.target.closest('[data-add-set]');
-        if (addSet) { const ei = parseInt(addSet.dataset.addSet); const ex = activeWorkout.exercises[ei]; const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }); renderWorkoutExercises(container, unit); return; }
+    const addSet = e.target.closest('[data-add-set]');
+    if (addSet) { const ei = parseInt(addSet.dataset.addSet); const ex = activeWorkout.exercises[ei]; const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }); saveSession(activeWorkout); renderWorkoutExercises(container, unit); return; }
 
-        const noteBtn = e.target.closest('[data-ex-note]');
-        if (noteBtn) {
-            const ei = parseInt(noteBtn.dataset.exNote);
-            const ex = activeWorkout.exercises[ei];
-            const body = openModal('', { title: `Note — ${ex.exerciseName}` });
-            body.innerHTML = `<textarea class="input" id="ex-note-input" rows="3" placeholder="How does this feel? Any cues?">${ex.notes || ''}</textarea>
+    const noteBtn = e.target.closest('[data-ex-note]');
+    if (noteBtn) {
+      const ei = parseInt(noteBtn.dataset.exNote);
+      const ex = activeWorkout.exercises[ei];
+      const body = openModal('', { title: `Note — ${ex.exerciseName}` });
+      body.innerHTML = `<textarea class="input" id="ex-note-input" rows="3" placeholder="How does this feel? Any cues?">${ex.notes || ''}</textarea>
               <button class="btn btn-primary btn-full" id="save-note-btn" style="margin-top:var(--sp-3)">Save</button>`;
-            body.querySelector('#save-note-btn').addEventListener('click', () => {
-                ex.notes = body.querySelector('#ex-note-input').value;
-                closeModal();
-                renderWorkoutExercises(container, unit);
-            });
-            return;
-        }
-    });
+      body.querySelector('#save-note-btn').addEventListener('click', () => {
+        ex.notes = body.querySelector('#ex-note-input').value;
+        saveSession(activeWorkout);
+        closeModal();
+        renderWorkoutExercises(container, unit);
+      });
+      return;
+    }
+  });
 
-    container.addEventListener('input', (e) => {
-        const input = e.target.closest('.input-inline');
-        if (!input) return;
-        const ei = parseInt(input.dataset.ei), si = parseInt(input.dataset.si), field = input.dataset.field;
-        const val = parseFloat(input.value) || 0;
-        activeWorkout.exercises[ei].sets[si][field] = val;
-    });
+  container.addEventListener('input', (e) => {
+    const input = e.target.closest('.input-inline');
+    if (!input) return;
+    const ei = parseInt(input.dataset.ei), si = parseInt(input.dataset.si), field = input.dataset.field;
+    const val = parseFloat(input.value) || 0;
+    activeWorkout.exercises[ei].sets[si][field] = val;
+    saveSession(activeWorkout);
+  });
 }
 
 function updateWorkoutClock(el) {
-    if (!el || !activeWorkout) return;
-    const s = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
-    el.textContent = `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+  if (!el || !activeWorkout) return;
+  const s = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
+  el.textContent = `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
 async function finishWorkout(container, unit) {
-    if (!activeWorkout) return;
+  if (!activeWorkout) return;
+  clearSession();
 
-    try {
-        const dur = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
-        if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+  try {
+    const dur = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
+    if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
 
-        // Clean up timer bar from body
-        const timerBar = document.querySelector('.rest-timer-bar');
-        if (timerBar) timerBar.remove();
-        stopTimer();
+    // Clean up timer bar from body
+    const timerBar = document.querySelector('.rest-timer-bar');
+    if (timerBar) timerBar.remove();
+    stopTimer();
 
-        const w = await put('workouts', { id: activeWorkout.id, date: new Date().toISOString().split('T')[0], planId: activeWorkout.planId, planName: activeWorkout.planName, dayName: activeWorkout.dayName, notes: activeWorkout.notes, durationSec: dur, exerciseCount: activeWorkout.exercises.length });
+    const w = await put('workouts', { id: activeWorkout.id, date: new Date().toISOString().split('T')[0], planId: activeWorkout.planId, planName: activeWorkout.planName, dayName: activeWorkout.dayName, notes: activeWorkout.notes, durationSec: dur, exerciseCount: activeWorkout.exercises.length });
 
-        const allSets = [];
-        for (const ex of activeWorkout.exercises) for (const s of ex.sets) allSets.push({ id: s.id, workoutId: w.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed, notes: ex.notes });
-        if (allSets.length > 0) await putMany('sets', allSets);
+    const allSets = [];
+    for (const ex of activeWorkout.exercises) for (const s of ex.sets) allSets.push({ id: s.id, workoutId: w.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed, notes: ex.notes });
+    if (allSets.length > 0) await putMany('sets', allSets);
 
-        const vol = allSets.reduce((s, r) => s + (r.completed ? r.weight * r.reps : 0), 0);
-        const done = allSets.filter(s => s.completed).length;
-        const min = Math.floor(dur / 60);
+    const vol = allSets.reduce((s, r) => s + (r.completed ? r.weight * r.reps : 0), 0);
+    const done = allSets.filter(s => s.completed).length;
+    const min = Math.floor(dur / 60);
 
-        // Get last bodyweight for pre-fill
-        const bwEntries = await getAll('bodyWeight');
-        const lastBW = bwEntries.sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+    // Get last bodyweight for pre-fill
+    const bwEntries = await getAll('bodyWeight');
+    const lastBW = bwEntries.sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
 
-        container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${activeWorkout.dayName}</p></div>
+    container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${activeWorkout.dayName}</p></div>
         <div class="card" style="margin-top:var(--sp-6)"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);text-align:center"><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${min}m</div><div class="text-xs text-muted">Duration</div></div><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${vol.toLocaleString()}</div><div class="text-xs text-muted">Volume</div></div><div><div class="font-bold text-success" style="font-size:var(--text-xl)">${done}/${allSets.length}</div><div class="text-xs text-muted">Sets</div></div></div></div>
         <div class="card" style="margin-top:var(--sp-3);padding:var(--sp-3)">
           <div class="flex items-center gap-3">
@@ -349,96 +365,98 @@ async function finishWorkout(container, unit) {
         </div>
         <button class="btn btn-primary btn-full btn-lg" style="margin-top:var(--sp-4)" id="done-btn">Done</button>`;
 
-        container.querySelector('#done-btn').addEventListener('click', async () => {
-            const bwVal = parseFloat(container.querySelector('#bw-input').value);
-            if (bwVal && bwVal > 0) {
-                await put('bodyWeight', { date: new Date().toISOString().split('T')[0], value: bwVal, unit });
-            }
-            activeWorkout = null;
-            window.location.hash = '/data';
-        });
-        showToast('Workout saved! 💪', 'success');
-    } catch (err) {
-        console.error('Error finishing workout:', err);
-        showToast('Error saving workout: ' + err.message, 'danger');
-    }
+    container.querySelector('#done-btn').addEventListener('click', async () => {
+      const bwVal = parseFloat(container.querySelector('#bw-input').value);
+      if (bwVal && bwVal > 0) {
+        await put('bodyWeight', { date: new Date().toISOString().split('T')[0], value: bwVal, unit });
+      }
+      activeWorkout = null;
+      window.location.hash = '/data';
+    });
+    showToast('Workout saved! 💪', 'success');
+  } catch (err) {
+    console.error('Error finishing workout:', err);
+    showToast('Error saving workout: ' + err.message, 'danger');
+  }
 }
 
 async function cancelWorkout(container, unit) {
-    const body = openModal('', { title: 'Stop Workout?' });
-    const hasPlan = !!activeWorkout?.planId;
-    body.innerHTML = `<p class="text-secondary" style="margin-bottom:var(--sp-4)">Any logged sets will not be saved.</p>
+  const body = openModal('', { title: 'Stop Workout?' });
+  const hasPlan = !!activeWorkout?.planId;
+  body.innerHTML = `<p class="text-secondary" style="margin-bottom:var(--sp-4)">Any logged sets will not be saved.</p>
       <div class="flex flex-col gap-2">
         <button class="btn btn-secondary btn-full" id="cancel-keep">Keep Going</button>
         <button class="btn btn-full" id="cancel-cancel" style="background:var(--bg-elevated);color:var(--text)">Cancel — Restart This Workout Later</button>
         ${hasPlan ? '<button class="btn btn-danger btn-full" id="cancel-skip">Skip — Move to Next Workout</button>' : ''}
       </div>`;
-    body.querySelector('#cancel-keep').addEventListener('click', () => closeModal());
+  body.querySelector('#cancel-keep').addEventListener('click', () => closeModal());
 
-    // Cancel: revert day index so user gets the same workout again
-    body.querySelector('#cancel-cancel').addEventListener('click', async () => {
-        closeModal();
-        if (activeWorkout.planId) {
-            const plan = await getById('plans', activeWorkout.planId);
-            if (plan) {
-                plan.currentDayIndex = activeWorkout.dayIndex;
-                await put('plans', plan);
-            }
-        }
-        cleanupWorkout();
-        showToast('Workout cancelled — you\'ll get this one next time', 'info');
-    });
-
-    // Skip: keep day index advanced (already done at start)
-    if (hasPlan) {
-        body.querySelector('#cancel-skip').addEventListener('click', () => {
-            closeModal();
-            cleanupWorkout();
-            showToast('Workout skipped — moving to next day', 'info');
-        });
+  // Cancel: revert day index so user gets the same workout again
+  body.querySelector('#cancel-cancel').addEventListener('click', async () => {
+    closeModal();
+    if (activeWorkout.planId) {
+      const plan = await getById('plans', activeWorkout.planId);
+      if (plan) {
+        plan.currentDayIndex = activeWorkout.dayIndex;
+        await put('plans', plan);
+      }
     }
+    cleanupWorkout();
+    showToast('Workout cancelled — you\'ll get this one next time', 'info');
+  });
+
+  // Skip: keep day index advanced (already done at start)
+  if (hasPlan) {
+    body.querySelector('#cancel-skip').addEventListener('click', () => {
+      closeModal();
+      cleanupWorkout();
+      showToast('Workout skipped — moving to next day', 'info');
+    });
+  }
 }
 
 function cleanupWorkout() {
-    if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
-    const timerBar = document.querySelector('.rest-timer-bar');
-    if (timerBar) timerBar.remove();
-    stopTimer();
-    activeWorkout = null;
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+  const timerBar = document.querySelector('.rest-timer-bar');
+  if (timerBar) timerBar.remove();
+  stopTimer();
+  clearSession();
+  activeWorkout = null;
+  window.dispatchEvent(new HashChangeEvent('hashchange'));
 }
 
 async function showExercisePicker(exercises, exContainer, unit) {
-    const body = openModal('', { title: 'Add Exercise' });
-    body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="add-ex-search" placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button class="list-item" data-id="${ex.id}" data-name="${ex.name}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.muscleGroup} • ${ex.equipment}</div></span></button>`).join('')}</div>`;
+  const body = openModal('', { title: 'Add Exercise' });
+  body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="add-ex-search" placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button class="list-item" data-id="${ex.id}" data-name="${ex.name}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.muscleGroup} • ${ex.equipment}</div></span></button>`).join('')}</div>`;
 
-    body.querySelector('#add-ex-search').addEventListener('input', (e) => {
-        const q = e.target.value.toLowerCase();
-        body.querySelectorAll('.list-item').forEach(i => { i.style.display = i.textContent.toLowerCase().includes(q) ? '' : 'none'; });
-    });
+  body.querySelector('#add-ex-search').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    body.querySelectorAll('.list-item').forEach(i => { i.style.display = i.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+  });
 
-    body.querySelector('#add-ex-list').addEventListener('click', async (e) => {
-        const item = e.target.closest('[data-id]'); if (!item) return;
-        const id = item.dataset.id, name = item.dataset.name;
-        const sug = await suggestNextWeight(id, { sets: 3, reps: 5, increment: 5 }, unit);
-        const prev = await getByIndex('sets', 'exerciseId', id);
-        const sets = []; for (let i = 0; i < 3; i++) sets.push({ id: uuid(), setNumber: i + 1, targetReps: 5, weight: sug.weight, reps: 5, completed: false, failed: false, rpe: null });
-        activeWorkout.exercises.push({ exerciseId: id, exerciseName: name, config: { sets: 3, reps: 5, increment: 5 }, sets, suggestedWeight: sug.weight, suggestionReason: sug.reason, previousPerformance: getLastWorkoutSets(prev), notes: '', collapsed: false });
-        closeModal(); renderWorkoutExercises(exContainer, unit); showToast(`${name} added`, 'success');
-    });
+  body.querySelector('#add-ex-list').addEventListener('click', async (e) => {
+    const item = e.target.closest('[data-id]'); if (!item) return;
+    const id = item.dataset.id, name = item.dataset.name;
+    const sug = await suggestNextWeight(id, { sets: 3, reps: 5, increment: 5 }, unit);
+    const prev = await getByIndex('sets', 'exerciseId', id);
+    const sets = []; for (let i = 0; i < 3; i++) sets.push({ id: uuid(), setNumber: i + 1, targetReps: 5, weight: sug.weight, reps: 5, completed: false, failed: false, rpe: null });
+    activeWorkout.exercises.push({ exerciseId: id, exerciseName: name, config: { sets: 3, reps: 5, increment: 5 }, sets, suggestedWeight: sug.weight, suggestionReason: sug.reason, previousPerformance: getLastWorkoutSets(prev), notes: '', collapsed: false });
+    saveSession(activeWorkout);
+    closeModal(); renderWorkoutExercises(exContainer, unit); showToast(`${name} added`, 'success');
+  });
 }
 
 async function showSwapPicker(ei, exContainer, unit) {
-    const currentEx = activeWorkout.exercises[ei];
-    const allExercises = await getAll('exercises');
-    const currentExData = allExercises.find(e => e.id === currentEx.exerciseId);
-    const muscleGroup = currentExData?.muscleGroup || '';
+  const currentEx = activeWorkout.exercises[ei];
+  const allExercises = await getAll('exercises');
+  const currentExData = allExercises.find(e => e.id === currentEx.exerciseId);
+  const muscleGroup = currentExData?.muscleGroup || '';
 
-    // Filter to same muscle group, exclude current exercise
-    const alternatives = allExercises.filter(e => e.muscleGroup === muscleGroup && e.id !== currentEx.exerciseId);
+  // Filter to same muscle group, exclude current exercise
+  const alternatives = allExercises.filter(e => e.muscleGroup === muscleGroup && e.id !== currentEx.exerciseId);
 
-    const body = openModal('', { title: `Swap ${currentEx.exerciseName}` });
-    body.innerHTML = `
+  const body = openModal('', { title: `Swap ${currentEx.exerciseName}` });
+  body.innerHTML = `
     <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${muscleGroup} exercises • ${alternatives.length} alternatives</div>
     <div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="swap-search" placeholder="Search..."/></div>
     <div id="swap-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">
@@ -454,74 +472,75 @@ async function showSwapPicker(ei, exContainer, unit) {
       ${alternatives.length === 0 ? '<div class="text-sm text-muted" style="padding:var(--sp-4);text-align:center">No alternatives found</div>' : ''}
     </div>`;
 
-    body.querySelector('#swap-search').addEventListener('input', (e) => {
-        const q = e.target.value.toLowerCase();
-        body.querySelectorAll('.list-item').forEach(i => { i.style.display = i.textContent.toLowerCase().includes(q) ? '' : 'none'; });
-    });
+  body.querySelector('#swap-search').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    body.querySelectorAll('.list-item').forEach(i => { i.style.display = i.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+  });
 
-    body.querySelector('#swap-list').addEventListener('click', async (e) => {
-        const btn = e.target.closest('[data-swap-id]');
-        if (!btn) return;
-        const newId = btn.dataset.swapId;
-        const newName = btn.dataset.swapName;
-        const mode = btn.dataset.swapMode;
+  body.querySelector('#swap-list').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-swap-id]');
+    if (!btn) return;
+    const newId = btn.dataset.swapId;
+    const newName = btn.dataset.swapName;
+    const mode = btn.dataset.swapMode;
 
-        // Swap in current workout
-        const oldId = currentEx.exerciseId;
-        const oldName = currentEx.exerciseName;
-        currentEx.exerciseId = newId;
-        currentEx.exerciseName = newName;
+    // Swap in current workout
+    const oldId = currentEx.exerciseId;
+    const oldName = currentEx.exerciseName;
+    currentEx.exerciseId = newId;
+    currentEx.exerciseName = newName;
 
-        // Recalculate weight suggestion for new exercise
-        const sug = await suggestNextWeight(newId, currentEx.config || { sets: 3, reps: 5, increment: 5 }, unit);
-        const prev = await getByIndex('sets', 'exerciseId', newId);
-        currentEx.suggestedWeight = sug.weight;
-        currentEx.suggestionReason = sug.reason;
-        currentEx.previousPerformance = getLastWorkoutSets(prev);
-        // Update set weights to the new suggestion
-        for (const s of currentEx.sets) { if (!s.completed) s.weight = sug.weight; }
+    // Recalculate weight suggestion for new exercise
+    const sug = await suggestNextWeight(newId, currentEx.config || { sets: 3, reps: 5, increment: 5 }, unit);
+    const prev = await getByIndex('sets', 'exerciseId', newId);
+    currentEx.suggestedWeight = sug.weight;
+    currentEx.suggestionReason = sug.reason;
+    currentEx.previousPerformance = getLastWorkoutSets(prev);
+    // Update set weights to the new suggestion
+    for (const s of currentEx.sets) { if (!s.completed) s.weight = sug.weight; }
 
-        // If permanent, also update the plan
-        if (mode === 'permanent' && activeWorkout.planId) {
-            const plan = await getById('plans', activeWorkout.planId);
-            if (plan) {
-                const day = plan.days[activeWorkout.dayIndex];
-                if (day) {
-                    const planEx = day.exercises.find(e => e.exerciseId === oldId || e.exerciseName === oldName);
-                    if (planEx) {
-                        planEx.exerciseId = newId;
-                        planEx.exerciseName = newName;
-                        await put('plans', plan);
-                    }
-                }
-            }
+    // If permanent, also update the plan
+    if (mode === 'permanent' && activeWorkout.planId) {
+      const plan = await getById('plans', activeWorkout.planId);
+      if (plan) {
+        const day = plan.days[activeWorkout.dayIndex];
+        if (day) {
+          const planEx = day.exercises.find(e => e.exerciseId === oldId || e.exerciseName === oldName);
+          if (planEx) {
+            planEx.exerciseId = newId;
+            planEx.exerciseName = newName;
+            await put('plans', plan);
+          }
         }
+      }
+    }
 
-        closeModal();
-        renderWorkoutExercises(exContainer, unit);
-        showToast(`Swapped to ${newName}`, 'success');
-    });
+    saveSession(activeWorkout);
+    closeModal();
+    renderWorkoutExercises(exContainer, unit);
+    showToast(`Swapped to ${newName}`, 'success');
+  });
 }
 
 async function showExerciseHistoryModal(ei, unit) {
-    const ex = activeWorkout.exercises[ei];
-    if (!ex || !ex.exerciseId) return;
+  const ex = activeWorkout.exercises[ei];
+  if (!ex || !ex.exerciseId) return;
 
-    const history = await getExerciseHistory(ex.exerciseId);
-    const body = openModal('', { title: `${ex.exerciseName} History` });
+  const history = await getExerciseHistory(ex.exerciseId);
+  const body = openModal('', { title: `${ex.exerciseName} History` });
 
-    if (!history.length) {
-        body.innerHTML = '<div class="text-sm text-muted" style="text-align:center;padding:var(--sp-4)">No recorded history yet.</div>';
-        return;
-    }
+  if (!history.length) {
+    body.innerHTML = '<div class="text-sm text-muted" style="text-align:center;padding:var(--sp-4)">No recorded history yet.</div>';
+    return;
+  }
 
-    const fmtDate = (iso) => {
-        if (!iso) return 'Unknown';
-        const d = new Date(iso);
-        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    };
+  const fmtDate = (iso) => {
+    if (!iso) return 'Unknown';
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  };
 
-    body.innerHTML = `
+  body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:var(--sp-2);max-height:60vh;overflow-y:auto;padding-right:var(--sp-2)">
       ${history.slice().reverse().map(h => `
         <div class="card" style="padding:var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-2)">
@@ -542,10 +561,10 @@ async function showExerciseHistoryModal(ei, unit) {
 }
 
 export function openWorkoutPage(container) {
-    activeWorkout = null;
-    if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+  activeWorkout = null;
+  if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
 
-    container.innerHTML = `
+  container.innerHTML = `
     <div class="flex items-center justify-between" style="margin-bottom:var(--sp-4)">
       <h1 class="page-title" style="font-size:var(--text-xl)">Start Workout</h1>
     </div>
@@ -558,42 +577,42 @@ export function openWorkoutPage(container) {
     <div id="workout-plan-list" class="flex flex-col gap-3"></div>
   `;
 
-    const planList = container.querySelector('#workout-plan-list');
-    getAll('plans').then(plans => {
-        if (!plans.length) {
-            planList.innerHTML = '<div class="card"><div class="text-sm text-muted" style="text-align:center">No active plans. Add a plan from the Plans tab.</div></div>';
-            return;
-        }
+  const planList = container.querySelector('#workout-plan-list');
+  getAll('plans').then(plans => {
+    if (!plans.length) {
+      planList.innerHTML = '<div class="card"><div class="text-sm text-muted" style="text-align:center">No active plans. Add a plan from the Plans tab.</div></div>';
+      return;
+    }
 
-        planList.innerHTML = plans.map(p => {
-            const dayIndex = p.currentDayIndex || 0;
-            const day = p.days[dayIndex];
-            return `<div class="card" style="cursor:pointer" data-plan-id="${p.id}">
+    planList.innerHTML = plans.map(p => {
+      const dayIndex = p.currentDayIndex || 0;
+      const day = p.days[dayIndex];
+      return `<div class="card" style="cursor:pointer" data-plan-id="${p.id}">
         <div class="card-header">
           <div><div class="card-title">${p.name}</div><div class="text-xs text-muted" style="margin-top:2px">Up next: ${day ? day.name : 'Workout'}</div></div>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
       </div>`;
-        }).join('');
-    });
+    }).join('');
+  });
 
-    container.querySelector('#start-empty-btn').addEventListener('click', () => {
-        startEmptyWorkout();
-        renderActiveWorkout(container, 'lb'); // Default to lb, UI will adapt on save
-    });
+  container.querySelector('#start-empty-btn').addEventListener('click', () => {
+    startEmptyWorkout();
+    renderActiveWorkout(container, 'lb'); // Default to lb, UI will adapt on save
+  });
 
-    planList.addEventListener('click', async (e) => {
-        const card = e.target.closest('[data-plan-id]');
-        if (!card) return;
-        const plan = await getById('plans', card.dataset.planId);
-        if (plan) {
-            const unit = await getSetting('distanceUnit', 'lb');
-            await startWorkoutFromPlan(plan, unit);
-            renderActiveWorkout(container, unit);
-        }
-    });
+  planList.addEventListener('click', async (e) => {
+    const card = e.target.closest('[data-plan-id]');
+    if (!card) return;
+    const plan = await getById('plans', card.dataset.planId);
+    if (plan) {
+      const unit = await getSetting('distanceUnit', 'lb');
+      await startWorkoutFromPlan(plan, unit);
+      renderActiveWorkout(container, unit);
+    }
+  });
 
-    // Handle back button / unload to confirm leaving active workout
-    const cleanup = () => { if (workoutInterval) clearInterval(workoutInterval); };
-    return cleanup;
+  // Handle back button / unload to confirm leaving active workout
+  const cleanup = () => { if (workoutInterval) clearInterval(workoutInterval); };
+  return cleanup;
 }
