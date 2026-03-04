@@ -781,28 +781,6 @@ textarea.input {
 }
 
 /* ---------- Animations ---------- */
-@keyframes check-pop {
-    0% {
-        transform: scale(1);
-    }
-
-    25% {
-        transform: scale(1.35);
-    }
-
-    50% {
-        transform: scale(0.9);
-    }
-
-    75% {
-        transform: scale(1.1);
-    }
-
-    100% {
-        transform: scale(1);
-    }
-}
-
 @keyframes check-draw {
     0% {
         stroke-dashoffset: 24;
@@ -811,10 +789,6 @@ textarea.input {
     100% {
         stroke-dashoffset: 0;
     }
-}
-
-.set-check.set-completed {
-    animation: check-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .set-check.set-completed svg {
