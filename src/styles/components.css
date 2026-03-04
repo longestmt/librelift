@@ -537,16 +537,6 @@ textarea.input {
     overflow: visible;
 }
 
-.set-check::after {
-    content: '';
-    position: absolute;
-    inset: -4px;
-    border-radius: var(--radius-md);
-    border: 2px solid var(--success);
-    opacity: 0;
-    pointer-events: none;
-}
-
 .set-check:hover {
     border-color: var(--success);
 }
@@ -813,18 +803,6 @@ textarea.input {
     }
 }
 
-@keyframes ripple-ring {
-    0% {
-        transform: scale(1);
-        opacity: 0.6;
-    }
-
-    100% {
-        transform: scale(1.8);
-        opacity: 0;
-    }
-}
-
 @keyframes check-draw {
     0% {
         stroke-dashoffset: 24;
@@ -837,10 +815,6 @@ textarea.input {
 
 .set-check.set-completed {
     animation: check-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.set-check.set-completed::after {
-    animation: ripple-ring 0.5s ease-out forwards;
 }
 
 .set-check.set-completed svg {
