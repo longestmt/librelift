@@ -285,7 +285,7 @@ function setupWorkoutEvents(container, unit) {
         check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
 
         // Automatically remove the animation class after it plays to leave it clean
-        setTimeout(() => check.classList.remove('set-completed'), 300);
+        setTimeout(() => check.classList.remove('set-completed'), 500);
 
         saveSession(activeWorkout);
         const rest = await getSetting('restTimer', 90);
