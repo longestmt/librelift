@@ -8,7 +8,7 @@ import { getByIndex } from '../data/db.js';
 /**
  * Suggest the next weight for an exercise based on plan config and history.
  * @param {string} exerciseId
- * @param {object} config - { increment, deloadPercent, deloadAfter, sets, reps }
+ * @param {object} config - { increment, deloadPercent, deloadAfter, sets, reps, repsMax }
  * @param {string} unit - 'lb' or 'kg'
  * @returns {Promise<{weight: number, reason: string}>}
  */
@@ -41,9 +41,11 @@ export async function suggestNextWeight(exerciseId, config, unit = 'lb') {
 
     // Check if all sets in last workout were completed successfully
     const targetSets = config.sets || lastWorkoutSets.length;
-    const targetReps = config.reps || 5;
+    const minReps = config.reps || 5;
+    // For rep-range exercises (e.g. 3×8–12), progression requires hitting the TOP of the range
+    const progressionReps = config.repsMax || minReps;
 
-    const completedSets = lastWorkoutSets.filter(s => s.completed && s.reps >= targetReps);
+    const completedSets = lastWorkoutSets.filter(s => s.completed && s.reps >= progressionReps);
     const allCompleted = completedSets.length >= targetSets;
 
     if (allCompleted) {
@@ -55,12 +57,12 @@ export async function suggestNextWeight(exerciseId, config, unit = 'lb') {
         };
     }
 
-    // Check consecutive failures
+    // Check consecutive failures (failure = didn't hit the MINIMUM rep target)
     const deloadAfter = config.deloadAfter || 3;
     let consecutiveFailures = 0;
 
     for (const [, wSets] of workouts) {
-        const wCompleted = wSets.filter(s => s.completed && s.reps >= targetReps);
+        const wCompleted = wSets.filter(s => s.completed && s.reps >= minReps);
         if (wCompleted.length < targetSets) {
             consecutiveFailures++;
         } else {

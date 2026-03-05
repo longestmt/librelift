@@ -140,7 +140,7 @@ async function startWorkoutFromPlan(plan, unit, overrideDayIndex = null) {
     const lastSets = getLastWorkoutSets(prevSets);
     const sets = [];
     for (let i = 0; i < ex.sets; i++) {
-      sets.push({ id: uuid(), setNumber: i + 1, targetReps: ex.reps, weight: suggestion.weight, reps: ex.reps, completed: false, failed: false, rpe: null });
+      sets.push({ id: uuid(), setNumber: i + 1, targetReps: ex.reps, targetRepsMax: ex.repsMax || null, weight: suggestion.weight, reps: ex.repsMax || ex.reps, completed: false, failed: false, rpe: null });
     }
     workoutExercises.push({ exerciseId: ex.exerciseId, exerciseName: exercise?.name || ex.exerciseName || 'Unknown', config: ex, sets, suggestedWeight: suggestion.weight, suggestionReason: suggestion.reason, previousPerformance: lastSets, notes: '', collapsed: false });
   }
@@ -232,7 +232,7 @@ function renderWorkoutExercises(container, unit) {
         </div>
       </div>
       <div class="exercise-body" style="${ex.collapsed ? 'display:none' : ''}">
-        <div style="display:grid;grid-template-columns:36px 1fr 1fr 56px 36px;gap:var(--sp-2);align-items:center;padding:var(--sp-1) 0;color:var(--text-muted);font-size:var(--text-xs);font-weight:500"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS</span><span style="text-align:center">RPE</span><span style="text-align:center">✓</span></div>
+        <div style="display:grid;grid-template-columns:36px 1fr 1fr 56px 36px;gap:var(--sp-2);align-items:center;padding:var(--sp-1) 0;color:var(--text-muted);font-size:var(--text-xs);font-weight:500"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS${ex.config?.repsMax && ex.config.repsMax !== ex.config.reps ? ` (${ex.config.reps}–${ex.config.repsMax})` : ''}</span><span style="text-align:center">RPE</span><span style="text-align:center">✓</span></div>
         ${ex.sets.map((set, si) => renderSetRow(set, si, ei)).join('')}
         <div class="flex gap-2" style="margin-top:var(--sp-2)"><button class="btn btn-ghost text-sm" data-add-set="${ei}" style="flex:1">+ Set</button>${ex.sets.length > 1 ? `<button class="btn btn-ghost text-sm text-danger" data-remove-set="${ei}">− Set</button>` : ''}<button class="btn btn-ghost text-sm" data-ex-note="${ei}" title="Note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button></div>
         ${ex.notes ? `<div class="text-xs text-muted" style="margin-top:var(--sp-1);padding:var(--sp-1) var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic">${ex.notes}</div>` : ''}

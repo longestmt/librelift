@@ -174,6 +174,7 @@ export async function renderPlansPage(container) {
               exerciseName: ex.exerciseName,
               sets: ex.sets || 3,
               reps: ex.reps || 5,
+              repsMax: ex.repsMax || null,
               increment: ex.increment || 5,
               incrementUnit: ex.incrementUnit || 'lb',
               deloadPercent: ex.deloadPercent || 10,
@@ -256,7 +257,7 @@ function showPlanDetail(plan, allExercises) {
                 <div class="list-item" style="cursor:default">
                   <div style="flex:1">
                     <div class="text-sm font-medium">${name}</div>
-                    <div class="text-xs text-muted">${ex.sets}×${ex.reps} ${ex.increment ? `• +${ex.increment}${ex.incrementUnit || 'lb'}/session` : ''}</div>
+                    <div class="text-xs text-muted">${ex.sets}×${ex.reps}${ex.repsMax && ex.repsMax !== ex.reps ? '–' + ex.repsMax : ''} ${ex.increment ? `• +${ex.increment}${ex.incrementUnit || 'lb'}/session` : ''}</div>
                   </div>
                 </div>
               `;
