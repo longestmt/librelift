@@ -1,68 +1,32 @@
-import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
-
-const isNative = Capacitor.isNativePlatform();
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 
 /**
- * Fallback vibration for web/PWA (Android Chrome only)
+ * Haptics utility — uses Capacitor's built-in web implementation
+ * which calls navigator.vibrate() on the web automatically.
+ * On native (Android/iOS), it uses the real haptic engine.
  */
-function webVibrate(pattern) {
-    try {
-        if (navigator.vibrate) navigator.vibrate(pattern);
-    } catch (_) { /* ignore */ }
-}
 
-/**
- * Trigger a very light haptic click (e.g. standard button taps, tab navigation)
- */
+/** Light tap — tab switches, minor buttons */
 export async function hapticLight() {
-    if (isNative) {
-        try { await Haptics.impact({ style: ImpactStyle.Light }); } catch (_) { }
-    } else {
-        webVibrate(10);
-    }
+    try { await Haptics.impact({ style: ImpactStyle.Light }); } catch (_) { }
 }
 
-/**
- * Trigger a medium haptic click (e.g. starting a workout, opening a modal)
- */
+/** Medium tap — starting a workout, opening modals */
 export async function hapticMedium() {
-    if (isNative) {
-        try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch (_) { }
-    } else {
-        webVibrate(20);
-    }
+    try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch (_) { }
 }
 
-/**
- * Trigger a heavy haptic click (e.g. completing a set, deleting an item)
- */
+/** Heavy tap — completing a set */
 export async function hapticHeavy() {
-    if (isNative) {
-        try { await Haptics.impact({ style: ImpactStyle.Heavy }); } catch (_) { }
-    } else {
-        webVibrate([30, 50, 30]);
-    }
+    try { await Haptics.impact({ style: ImpactStyle.Heavy }); } catch (_) { }
 }
 
-/**
- * Trigger a success haptic pattern (e.g. finishing a workout, saving settings)
- */
+/** Success pattern — finishing a workout */
 export async function hapticSuccess() {
-    if (isNative) {
-        try { await Haptics.notification({ type: 'SUCCESS' }); } catch (_) { }
-    } else {
-        webVibrate([40, 80, 50]);
-    }
+    try { await Haptics.notification({ type: NotificationType.Success }); } catch (_) { }
 }
 
-/**
- * Trigger a warning/error haptic pattern
- */
+/** Error pattern */
 export async function hapticError() {
-    if (isNative) {
-        try { await Haptics.notification({ type: 'ERROR' }); } catch (_) { }
-    } else {
-        webVibrate([20, 40, 20, 40, 50]);
-    }
+    try { await Haptics.notification({ type: NotificationType.Error }); } catch (_) { }
 }
