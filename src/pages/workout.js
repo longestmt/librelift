@@ -247,10 +247,10 @@ function renderSetRow(set, si, ei) {
   const lockedCls = set.completed ? 'locked' : '';
   return `<div class="set-row">
     <span class="set-number">${set.setNumber}</span>
-    <input class="input-inline ${lockedCls}" type="number" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal" ${locked}/>
-    <input class="input-inline ${lockedCls}" type="number" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric" ${locked}/>
-    <input class="input-inline ${lockedCls}" type="number" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—" ${locked}/>
-    <button class="set-check ${cls}" data-ei="${ei}" data-si="${si}">${icon}</button>
+    <input aria-label="Weight for set ${set.setNumber}" class="input-inline ${lockedCls}" type="number" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal" ${locked}/>
+    <input aria-label="Reps for set ${set.setNumber}" class="input-inline ${lockedCls}" type="number" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric" ${locked}/>
+    <input aria-label="RPE for set ${set.setNumber}" class="input-inline ${lockedCls}" type="number" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—" ${locked}/>
+    <button aria-label="Complete set ${set.setNumber}" title="Complete set ${set.setNumber}" class="set-check ${cls}" data-ei="${ei}" data-si="${si}">${icon}</button>
   </div>`;
 }
 

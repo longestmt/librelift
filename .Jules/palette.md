@@ -1,0 +1,3 @@
+## 2024-05-14 - ARIA labels for dynamically generated repetitive inputs
+**Learning:** When generating repetitive input fields (like sets in a workout), it's critical to include the set number or specific context in the `aria-label` (e.g., "Weight for set 1" rather than just "Weight"). Otherwise, screen reader users hear the same generic label multiple times without knowing which row they are editing.
+**Action:** Always interpolate unique identifiers (like index or item name) into `aria-label` attributes when rendering lists or tables of interactive elements.
