@@ -6,6 +6,7 @@ import { getAll, getById, getByIndex, softDelete } from '../data/db.js';
 import { createLineChart } from '../components/charts.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 export async function renderHistoryPage(container) {
   const workouts = await getAll('workouts');
@@ -127,7 +128,7 @@ function showWorkoutDetail(workout, sets, onDelete) {
   const body = openModal('', { title: workout.dayName || 'Workout' });
   body.innerHTML = `
     <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${workout.date}${workout.planName ? ` • ${workout.planName}` : ''}${workout.durationSec ? ` • ${Math.floor(workout.durationSec / 60)}m` : ''}</div>
-    ${workout.notes ? `<div class="card" style="margin-bottom:var(--sp-3);padding:var(--sp-3)"><div class="text-xs text-muted">Notes</div><div class="text-sm">${workout.notes}</div></div>` : ''}
+    ${workout.notes ? `<div class="card" style="margin-bottom:var(--sp-3);padding:var(--sp-3)"><div class="text-xs text-muted">Notes</div><div class="text-sm">${escapeHTML(workout.notes)}</div></div>` : ''}
     <div class="flex flex-col gap-4">
       ${[...exerciseMap.entries()].map(([name, exSets]) => `
         <div>

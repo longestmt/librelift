@@ -11,6 +11,7 @@ import { showToast } from '../components/toast.js';
 import { uuid } from '../data/db.js';
 import { saveSession, loadSession, clearSession } from '../data/session.js';
 import { hapticLight, hapticMedium, hapticHeavy, hapticSuccess } from '../utils/haptics.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 let activeWorkout = null;
 let workoutInterval = null;
@@ -169,7 +170,7 @@ function renderActiveWorkout(container, unit) {
     </div>
     <div id="workout-exercises" class="flex flex-col gap-4"></div>
     <div style="margin-top:var(--sp-4)"><div class="input-group"><label class="input-label">Gym Notes</label>
-      <textarea class="input" id="workout-notes" rows="2" placeholder="How's the session going?">${activeWorkout.notes}</textarea></div></div>
+      <textarea class="input" id="workout-notes" rows="2" placeholder="How's the session going?">${escapeHTML(activeWorkout.notes)}</textarea></div></div>
     <div style="margin-top:var(--sp-4)"><button class="btn btn-secondary btn-full" id="add-exercise-btn">+ Add Exercise</button></div>`;
 
   const exContainer = container.querySelector('#workout-exercises');
@@ -235,7 +236,7 @@ function renderWorkoutExercises(container, unit) {
         <div style="display:grid;grid-template-columns:36px 1fr 1fr 56px 36px;gap:var(--sp-2);align-items:center;padding:var(--sp-1) 0;color:var(--text-muted);font-size:var(--text-xs);font-weight:500"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS${ex.config?.repsMax && ex.config.repsMax !== ex.config.reps ? ` (${ex.config.reps}–${ex.config.repsMax})` : ''}</span><span style="text-align:center">RPE</span><span style="text-align:center">✓</span></div>
         ${ex.sets.map((set, si) => renderSetRow(set, si, ei)).join('')}
         <div class="flex gap-2" style="margin-top:var(--sp-2)"><button class="btn btn-ghost text-sm" data-add-set="${ei}" style="flex:1">+ Set</button>${ex.sets.length > 1 ? `<button class="btn btn-ghost text-sm text-danger" data-remove-set="${ei}">− Set</button>` : ''}<button class="btn btn-ghost text-sm" data-ex-note="${ei}" title="Note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button></div>
-        ${ex.notes ? `<div class="text-xs text-muted" style="margin-top:var(--sp-1);padding:var(--sp-1) var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic">${ex.notes}</div>` : ''}
+        ${ex.notes ? `<div class="text-xs text-muted" style="margin-top:var(--sp-1);padding:var(--sp-1) var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic">${escapeHTML(ex.notes)}</div>` : ''}
       </div></div>`;
   }).join('');
 }
@@ -328,7 +329,7 @@ function setupWorkoutEvents(container, unit) {
       const ei = parseInt(noteBtn.dataset.exNote);
       const ex = activeWorkout.exercises[ei];
       const body = openModal('', { title: `Note — ${ex.exerciseName}` });
-      body.innerHTML = `<textarea class="input" id="ex-note-input" rows="3" placeholder="How does this feel? Any cues?">${ex.notes || ''}</textarea>
+      body.innerHTML = `<textarea class="input" id="ex-note-input" rows="3" placeholder="How does this feel? Any cues?">${escapeHTML(ex.notes) || ''}</textarea>
               <button class="btn btn-primary btn-full" id="save-note-btn" style="margin-top:var(--sp-3)">Save</button>`;
       body.querySelector('#save-note-btn').addEventListener('click', () => {
         ex.notes = body.querySelector('#ex-note-input').value;
@@ -589,7 +590,7 @@ async function showExerciseHistoryModal(ei, unit) {
               <div class="font-medium" style="color:var(--accent)">${h.volume >= 1000 ? `${(h.volume / 1000).toFixed(1)}k` : h.volume}</div>
             </div>
           </div>
-          ${h.notes ? `<div class="text-sm text-muted" style="padding:var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic;margin-top:4px">${h.notes}</div>` : ''}
+          ${h.notes ? `<div class="text-sm text-muted" style="padding:var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic;margin-top:4px">${escapeHTML(h.notes)}</div>` : ''}
         </div>
       `).join('')}
     </div>`;
