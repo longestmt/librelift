@@ -3,7 +3,7 @@
  */
 
 import { getAll, getById, getByIndex, put, putMany, getSetting, setSetting } from '../data/db.js';
-import { suggestNextWeight, getExerciseHistory } from '../engine/progression.js';
+import { suggestNextWeight, getExerciseHistory, deriveSetType } from '../engine/progression.js';
 import { createTimerElement, startTimer, stopTimer } from '../components/timer.js';
 import { createPlateCalculator } from '../components/plate-calc.js';
 import { openModal, closeModal } from '../components/modal.js';
@@ -375,7 +375,10 @@ async function finishWorkout(container, unit) {
     const w = await put('workouts', { id: activeWorkout.id, date: new Date().toISOString().split('T')[0], planId: activeWorkout.planId, planName: activeWorkout.planName, dayName: activeWorkout.dayName, notes: activeWorkout.notes, durationSec: dur, exerciseCount: activeWorkout.exercises.length });
 
     const allSets = [];
-    for (const ex of activeWorkout.exercises) for (const s of ex.sets) allSets.push({ id: s.id, workoutId: w.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed, notes: ex.notes });
+    for (const ex of activeWorkout.exercises) {
+      const setType = deriveSetType(ex.config);
+      for (const s of ex.sets) allSets.push({ id: s.id, workoutId: w.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed, notes: ex.notes, setType });
+    }
     if (allSets.length > 0) await putMany('sets', allSets);
 
     const vol = allSets.reduce((s, r) => s + (r.completed ? r.weight * r.reps : 0), 0);

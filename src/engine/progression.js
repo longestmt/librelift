@@ -3,6 +3,20 @@
  * Pure functions for suggesting weights and calculating plates
  */
 
+/**
+ * Derive a set-type key from a plan exercise config.
+ * Examples: "5x5", "3x8-12", "1x5"
+ * Used to separate progression tracks when the same exercise appears
+ * with different rep schemes (e.g. OHP 5×5 on Push B vs OHP 3×8-12 on Push A).
+ */
+export function deriveSetType(config) {
+    if (!config || !config.sets || !config.reps) return null;
+    const base = `${config.sets}x${config.reps}`;
+    return config.repsMax && config.repsMax !== config.reps
+        ? `${base}-${config.repsMax}`
+        : base;
+}
+
 import { getByIndex } from '../data/db.js';
 
 /**
@@ -13,9 +27,18 @@ import { getByIndex } from '../data/db.js';
  * @returns {Promise<{weight: number, reason: string}>}
  */
 export async function suggestNextWeight(exerciseId, config, unit = 'lb') {
-    const sets = await getByIndex('sets', 'exerciseId', exerciseId);
-    if (!sets.length) {
+    const allSets = await getByIndex('sets', 'exerciseId', exerciseId);
+    if (!allSets.length) {
         return { weight: 0, reason: 'first-time' };
+    }
+
+    // Filter sets to matching setType when available.
+    // Falls back to all sets if no tagged sets match (legacy data).
+    const setType = deriveSetType(config);
+    let sets = allSets;
+    if (setType) {
+        const tagged = allSets.filter(s => s.setType === setType);
+        if (tagged.length > 0) sets = tagged;
     }
 
     // Group sets by workout, get last N workouts
