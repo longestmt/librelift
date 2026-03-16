@@ -246,12 +246,13 @@ function renderSetRow(set, si, ei) {
   const icon = set.completed ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '';
   const locked = set.completed ? 'readonly' : '';
   const lockedCls = set.completed ? 'locked' : '';
+  const isPressed = set.completed ? 'true' : 'false';
   return `<div class="set-row">
-    <span class="set-number">${set.setNumber}</span>
-    <input class="input-inline ${lockedCls}" type="number" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal" ${locked}/>
-    <input class="input-inline ${lockedCls}" type="number" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric" ${locked}/>
-    <input class="input-inline ${lockedCls}" type="number" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—" ${locked}/>
-    <button class="set-check ${cls}" data-ei="${ei}" data-si="${si}">${icon}</button>
+    <span class="set-number" aria-hidden="true">${set.setNumber}</span>
+    <input class="input-inline ${lockedCls}" type="number" aria-label="Weight for set ${set.setNumber}" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal" ${locked}/>
+    <input class="input-inline ${lockedCls}" type="number" aria-label="Reps for set ${set.setNumber}" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric" ${locked}/>
+    <input class="input-inline ${lockedCls}" type="number" aria-label="RPE for set ${set.setNumber}" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—" ${locked}/>
+    <button class="set-check ${cls}" aria-label="Mark set ${set.setNumber} complete" aria-pressed="${isPressed}" data-ei="${ei}" data-si="${si}">${icon}</button>
   </div>`;
 }
 
