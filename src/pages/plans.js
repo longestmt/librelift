@@ -7,6 +7,7 @@ import { DEFAULT_PLANS } from '../data/plans-seed.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 import { hapticLight, hapticMedium } from '../utils/haptics.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 export async function renderPlansPage(container) {
   const plans = await getAll('plans');
@@ -207,7 +208,7 @@ function renderPlanCard(plan) {
     <div class="card card-clickable" data-plan-id="${plan.id}">
       <div class="card-header">
         <div>
-          <div class="card-title">${plan.name}</div>
+          <div class="card-title">${escapeHTML(plan.name)}</div>
           <div class="flex gap-2" style="margin-top:var(--sp-1)">
             <span class="badge badge-accent">${dayCount} days</span>
             <span class="badge badge-muted">${exerciseCount} exercises</span>
@@ -221,8 +222,8 @@ function renderPlanCard(plan) {
           </button>
         </div>
       </div>
-      ${plan.description ? `<p class="text-sm text-secondary">${plan.description}</p>` : ''}
-      ${plan.schedule ? `<p class="text-xs text-muted" style="margin-top:var(--sp-2)">${plan.schedule}</p>` : ''}
+      ${plan.description ? `<p class="text-sm text-secondary">${escapeHTML(plan.description)}</p>` : ''}
+      ${plan.schedule ? `<p class="text-xs text-muted" style="margin-top:var(--sp-2)">${escapeHTML(plan.schedule)}</p>` : ''}
     </div>
   `;
 }
@@ -232,8 +233,8 @@ function showPlanDetail(plan, allExercises) {
   const nextDayIndex = plan.currentDayIndex || 0;
 
   body.innerHTML = `
-    ${plan.description ? `<p class="text-sm text-secondary" style="margin-bottom:var(--sp-4)">${plan.description}</p>` : ''}
-    ${plan.schedule ? `<p class="text-xs text-muted" style="margin-bottom:var(--sp-4)">${plan.schedule}</p>` : ''}
+    ${plan.description ? `<p class="text-sm text-secondary" style="margin-bottom:var(--sp-4)">${escapeHTML(plan.description)}</p>` : ''}
+    ${plan.schedule ? `<p class="text-xs text-muted" style="margin-bottom:var(--sp-4)">${escapeHTML(plan.schedule)}</p>` : ''}
 
     <div class="flex flex-col gap-4">
       ${(plan.days || []).map((day, di) => {
@@ -242,10 +243,10 @@ function showPlanDetail(plan, allExercises) {
         <div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-2)">
             <div style="display:flex;align-items:center;gap:var(--sp-2)">
-              <span class="font-semibold" style="color:var(--accent)">${day.name}</span>
+              <span class="font-semibold" style="color:var(--accent)">${escapeHTML(day.name)}</span>
               ${isNext ? '<span class="badge badge-success" style="font-size:10px">Up next</span>' : ''}
             </div>
-            <button class="btn btn-ghost btn-icon" data-start-day="${di}" title="Start ${day.name}" style="width:32px;height:32px;color:var(--accent)">
+            <button class="btn btn-ghost btn-icon" data-start-day="${di}" title="Start ${escapeHTML(day.name)}" style="width:32px;height:32px;color:var(--accent)">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             </button>
           </div>
@@ -256,7 +257,7 @@ function showPlanDetail(plan, allExercises) {
       return `
                 <div class="list-item" style="cursor:default">
                   <div style="flex:1">
-                    <div class="text-sm font-medium">${name}</div>
+                    <div class="text-sm font-medium">${escapeHTML(name)}</div>
                     <div class="text-xs text-muted">${ex.sets}×${ex.reps}${ex.repsMax && ex.repsMax !== ex.reps ? '–' + ex.repsMax : ''} ${ex.increment ? `• +${ex.increment}${ex.incrementUnit || 'lb'}/session` : ''}</div>
                   </div>
                 </div>
@@ -335,14 +336,14 @@ function showCreatePlanModal(exercises) {
   function renderDays() {
     daysContainer.innerHTML = planDays.map((day, di) => `
       <div class="card" style="padding:var(--sp-3)">
-        <input class="input" aria-label="Name for day ${di + 1}" value="${day.name}" data-day="${di}" style="margin-bottom:var(--sp-2); font-weight:600" />
+        <input class="input" value="${escapeHTML(day.name)}" data-day="${di}" style="margin-bottom:var(--sp-2); font-weight:600" />
         <div class="flex flex-col gap-1" id="day-${di}-exercises">
           ${day.exercises.map((ex, ei) => {
       const exercise = exercises.find(e => e.id === ex.exerciseId);
       return `
               <div class="flex items-center gap-2 text-sm">
-                <span style="flex:1">${exercise?.name || 'Select...'}</span>
-                <input class="input-inline" aria-label="Sets for ${exercise?.name || 'exercise'}" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:40px" />
+                <span style="flex:1">${escapeHTML(exercise?.name || 'Select...')}</span>
+                <input class="input-inline" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:40px" />
                 <span class="text-muted">×</span>
                 <input class="input-inline" aria-label="Reps for ${exercise?.name || 'exercise'}" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:40px" />
                 <button class="btn btn-ghost btn-icon" aria-label="Remove ${exercise?.name || 'exercise'}" data-remove-ex="${di}-${ei}" style="width:28px;height:28px">×</button>
@@ -433,8 +434,8 @@ function showExercisePicker(exercises) {
         ${exercises.map(ex => `
           <button class="list-item" data-id="${ex.id}" style="width:100%; border:none; background:none; text-align:left; font-family:var(--font-sans); color:var(--text-primary)">
             <span style="flex:1">
-              <div class="text-sm font-medium">${ex.name}</div>
-              <div class="text-xs text-muted">${ex.muscleGroup} • ${ex.equipment}</div>
+              <div class="text-sm font-medium">${escapeHTML(ex.name)}</div>
+              <div class="text-xs text-muted">${escapeHTML(ex.muscleGroup)} • ${escapeHTML(ex.equipment)}</div>
             </span>
           </button>
         `).join('')}
