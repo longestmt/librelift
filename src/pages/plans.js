@@ -335,17 +335,17 @@ function showCreatePlanModal(exercises) {
   function renderDays() {
     daysContainer.innerHTML = planDays.map((day, di) => `
       <div class="card" style="padding:var(--sp-3)">
-        <input class="input" value="${day.name}" data-day="${di}" style="margin-bottom:var(--sp-2); font-weight:600" />
+        <input class="input" aria-label="Name for day ${di + 1}" value="${day.name}" data-day="${di}" style="margin-bottom:var(--sp-2); font-weight:600" />
         <div class="flex flex-col gap-1" id="day-${di}-exercises">
           ${day.exercises.map((ex, ei) => {
       const exercise = exercises.find(e => e.id === ex.exerciseId);
       return `
               <div class="flex items-center gap-2 text-sm">
                 <span style="flex:1">${exercise?.name || 'Select...'}</span>
-                <input class="input-inline" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:40px" />
+                <input class="input-inline" aria-label="Sets for ${exercise?.name || 'exercise'}" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:40px" />
                 <span class="text-muted">×</span>
-                <input class="input-inline" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:40px" />
-                <button class="btn btn-ghost btn-icon" data-remove-ex="${di}-${ei}" style="width:28px;height:28px">×</button>
+                <input class="input-inline" aria-label="Reps for ${exercise?.name || 'exercise'}" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:40px" />
+                <button class="btn btn-ghost btn-icon" aria-label="Remove ${exercise?.name || 'exercise'}" data-remove-ex="${di}-${ei}" style="width:28px;height:28px">×</button>
               </div>
             `;
     }).join('')}

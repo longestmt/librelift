@@ -37,7 +37,7 @@ export async function renderSettingsPage(container) {
         <div class="flex items-center justify-between">
           <div><div class="card-title">Bar Weight</div><div class="text-xs text-muted">Used for plate calculator</div></div>
           <div class="flex items-center gap-2">
-            <input class="input-inline" type="number" id="bar-weight" value="${barWeight}" style="width:72px" inputmode="decimal" />
+            <input class="input-inline" type="number" id="bar-weight" aria-label="Bar weight" value="${barWeight}" style="width:72px" inputmode="decimal" />
             <span class="text-sm text-muted">${unit}</span>
           </div>
         </div>
@@ -48,7 +48,7 @@ export async function renderSettingsPage(container) {
         <div class="flex items-center justify-between">
           <div><div class="card-title">Rest Timer</div><div class="text-xs text-muted">Default rest between sets</div></div>
           <div class="flex items-center gap-2">
-            <input class="input-inline" type="number" id="rest-timer" value="${restTimer}" style="width:72px" inputmode="numeric" />
+            <input class="input-inline" type="number" id="rest-timer" aria-label="Rest timer duration in seconds" value="${restTimer}" style="width:72px" inputmode="numeric" />
             <span class="text-sm text-muted">sec</span>
           </div>
         </div>
@@ -72,7 +72,7 @@ export async function renderSettingsPage(container) {
           ${Object.keys(plateInventory).sort((a, b) => parseFloat(b) - parseFloat(a)).map(size => `
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium">${size} ${unit}</span>
-              <input class="input-inline" type="number" data-plate="${size}" value="${plateInventory[size]}" inputmode="numeric" style="width:64px"/>
+              <input class="input-inline" type="number" data-plate="${size}" aria-label="Inventory for ${size} ${unit} plates" value="${plateInventory[size]}" inputmode="numeric" style="width:64px"/>
             </div>
           `).join('')}
         </div>
