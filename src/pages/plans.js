@@ -345,8 +345,8 @@ function showCreatePlanModal(exercises) {
                 <span style="flex:1">${escapeHTML(exercise?.name || 'Select...')}</span>
                 <input class="input-inline" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:40px" />
                 <span class="text-muted">×</span>
-                <input class="input-inline" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:40px" />
-                <button class="btn btn-ghost btn-icon" data-remove-ex="${di}-${ei}" style="width:28px;height:28px">×</button>
+                <input class="input-inline" aria-label="Reps for ${exercise?.name || 'exercise'}" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:40px" />
+                <button class="btn btn-ghost btn-icon" aria-label="Remove ${exercise?.name || 'exercise'}" data-remove-ex="${di}-${ei}" style="width:28px;height:28px">×</button>
               </div>
             `;
     }).join('')}
