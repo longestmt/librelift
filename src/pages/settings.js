@@ -113,7 +113,7 @@ export async function renderSettingsPage(container) {
         <div class="card-title" style="margin-bottom:var(--sp-2)">About</div>
         <div class="text-sm text-secondary">
           <div class="flex items-center justify-between" style="margin-bottom:var(--sp-1)">
-            <div><strong>LibreLift</strong> v0.1.7</div>
+            <div><strong>LibreLift</strong> v0.1.8</div>
             <button class="btn btn-ghost text-xs" id="check-updates-btn" style="padding:var(--sp-1) var(--sp-2)">Check for Updates</button>
           </div>
           A free/libre, open-source lifting app.<br>
