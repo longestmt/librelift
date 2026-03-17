@@ -3,3 +3,4 @@ dist/
 .DS_Store
 *.local
 Librelift_AI_Strategy_Assessment.md
+*.log
