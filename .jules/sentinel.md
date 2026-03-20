@@ -1,4 +1,4 @@
-## 2024-03-15 - [XSS via unescaped user inputs in innerHTML]
-**Vulnerability:** Unescaped user inputs (like exercise names, workout notes) directly passed to innerHTML in multiple files (e.g. workout.js, history.js).
-**Learning:** The project relies heavily on template literals injected directly into innerHTML. Using a sanitization utility is critical since there's no native framework handling escaping.
-**Prevention:** Always use an escapeHTML utility before injecting user-provided strings into the DOM via innerHTML.
+## 2024-03-20 - XSS in User-Generated HTML String Templates
+**Vulnerability:** Found multiple Cross-Site Scripting (XSS) vulnerabilities in `src/pages/plans.js` where user-provided plan details (name, description, schedule, and exercise names) were injected directly into `innerHTML` using template literals without sanitization.
+**Learning:** The application heavily relies on vanilla JS template literals for UI rendering (e.g., `container.innerHTML = \`...${userVariable}...\``). This pattern is inherently risky if any interpolated variable originates from user input. While `escapeHTML` exists in `src/utils/sanitize.js`, it wasn't consistently applied across all pages, particularly in the Plans feature where users can import entire workout JSON configurations.
+**Prevention:** Always wrap user-controlled variables in `escapeHTML()` when interpolating them into `innerHTML` strings. Conduct a codebase-wide audit searching for `innerHTML = \`` to identify other potential missed sanitization points. When importing the `escapeHTML` utility, verify it's also used for attributes like `value` and `aria-label` which are rendered within the same template strings.
