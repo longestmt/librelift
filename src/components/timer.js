@@ -23,7 +23,7 @@ export function createTimerElement() {
       <span class="rest-timer-time font-mono">0:00</span>
       <span class="rest-timer-label text-xs">Rest</span>
       <div class="rest-timer-actions">
-        <button class="rest-timer-btn" data-timer-action="skip" title="Skip">
+        <button class="rest-timer-btn" aria-label="Skip timer" data-timer-action="skip" title="Skip">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
         </button>
       </div>
