@@ -72,45 +72,51 @@ function renderHeatmap(container, workouts) {
         const count = dateMap.get(key) || 0;
         const level = count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : count >= 3 ? 4 : 3;
         week.push({ key, count, level, month: d.getMonth(), day: d.getDate() });
+      } else {
+        week.push(null);
       }
       d.setDate(d.getDate() + 1);
     }
     weeks.push(week);
   }
 
-  // Month labels row
+  const numCols = weeks.length;
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  let monthLabels = '<div class="heatmap-month-label"></div>'; // spacer for day labels column
+  const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+
+  // Build the grid row by row (month header row, then 7 day rows)
+  let cells = '';
+
+  // Row 1: month labels
+  cells += '<div class="heatmap-label"></div>'; // spacer above day labels
   let prevMonth = -1;
   for (const week of weeks) {
     const firstDay = week[0];
     if (firstDay && firstDay.month !== prevMonth) {
-      monthLabels += `<div class="heatmap-month-label">${monthNames[firstDay.month]}</div>`;
+      cells += `<div class="heatmap-label">${monthNames[firstDay.month]}</div>`;
       prevMonth = firstDay.month;
     } else {
-      monthLabels += '<div class="heatmap-month-label"></div>';
+      cells += '<div class="heatmap-label"></div>';
     }
   }
 
-  // Day labels + grid rows
-  const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
-  let rows = '';
+  // Rows 2-8: day rows
   for (let row = 0; row < 7; row++) {
-    rows += `<div class="heatmap-day-label">${dayLabels[row]}</div>`;
+    cells += `<div class="heatmap-label heatmap-day-label">${dayLabels[row]}</div>`;
     for (const week of weeks) {
-      if (week[row]) {
-        const c = week[row];
+      const c = week[row];
+      if (c) {
         const title = `${c.key}: ${c.count} workout${c.count !== 1 ? 's' : ''}`;
-        rows += `<div class="heatmap-cell level-${c.level}" title="${title}"></div>`;
+        cells += `<div class="heatmap-cell level-${c.level}" title="${title}"></div>`;
+      } else {
+        cells += '<div></div>';
       }
     }
   }
 
-  const numCols = weeks.length;
   const html = `
-    <div class="heatmap-grid" style="grid-template-columns: auto repeat(${numCols}, 14px);">
-      <div class="heatmap-months">${monthLabels}</div>
-      ${rows}
+    <div class="heatmap-grid" style="grid-template-columns: auto repeat(${numCols}, 14px); grid-template-rows: auto repeat(7, 14px);">
+      ${cells}
     </div>
     <div class="heatmap-legend">
       <span>Less</span>
