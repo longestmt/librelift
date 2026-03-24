@@ -1,6 +1,7 @@
 /**
  * toast.js — Toast notification system
  */
+import { escapeHTML } from '../utils/sanitize.js';
 
 let container = null;
 
@@ -17,7 +18,7 @@ export function showToast(message, type = 'info', duration = 3000) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `
-    <span>${message}</span>
+    <span>${escapeHTML(message)}</span>
   `;
     c.appendChild(toast);
 
