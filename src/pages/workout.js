@@ -179,24 +179,32 @@ function renderActiveWorkout(container, unit) {
   const timerEl = createTimerElement();
   document.body.appendChild(timerEl);
 
-  // Workout clock with pause
-  let clockPaused = false;
-  let pausedElapsed = 0;
+  // Workout clock with pause (pausedAt is persisted on activeWorkout so it survives app restart)
   const clockEl = container.querySelector('#workout-clock');
-  updateWorkoutClock(clockEl);
-  workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
+
+  if (activeWorkout.pausedAt) {
+    // Restore paused state from saved session
+    clockEl.style.opacity = '0.5';
+    const pausedElapsed = Math.floor((activeWorkout.pausedAt - activeWorkout.startTime) / 1000);
+    clockEl.textContent = `${Math.floor(pausedElapsed / 60)}:${(pausedElapsed % 60).toString().padStart(2, '0')}`;
+  } else {
+    updateWorkoutClock(clockEl);
+    workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
+  }
 
   clockEl.addEventListener('click', () => {
-    if (clockPaused) {
+    if (activeWorkout.pausedAt) {
       // Resume: adjust startTime to account for paused duration
-      activeWorkout.startTime = Date.now() - (pausedElapsed * 1000);
-      clockPaused = false;
+      const pausedElapsed = activeWorkout.pausedAt - activeWorkout.startTime;
+      activeWorkout.startTime = Date.now() - pausedElapsed;
+      delete activeWorkout.pausedAt;
+      saveSession(activeWorkout);
       clockEl.style.opacity = '1';
       workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
     } else {
-      // Pause: save elapsed and stop interval
-      pausedElapsed = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
-      clockPaused = true;
+      // Pause: record when we paused
+      activeWorkout.pausedAt = Date.now();
+      saveSession(activeWorkout);
       clockEl.style.opacity = '0.5';
       if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
     }
@@ -364,7 +372,8 @@ async function finishWorkout(container, unit) {
   clearSession();
 
   try {
-    const dur = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
+    const endTime = activeWorkout.pausedAt || Date.now();
+    const dur = Math.floor((endTime - activeWorkout.startTime) / 1000);
     if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
 
     // Clean up timer bar from body
