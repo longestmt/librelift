@@ -53,80 +53,22 @@ function renderHeatmap(container, workouts) {
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - 90);
 
-  // Align start to a Sunday so columns represent full weeks
-  startDate.setDate(startDate.getDate() - startDate.getDay());
-
   const dateMap = new Map();
   for (const w of workouts) {
     if (w.date) dateMap.set(w.date, (dateMap.get(w.date) || 0) + 1);
   }
 
-  // Build weeks (columns) of 7 days each
-  const weeks = [];
+  let html = '<div style="display:flex;gap:3px;flex-wrap:wrap;">';
   const d = new Date(startDate);
   while (d <= today) {
-    const week = [];
-    for (let i = 0; i < 7; i++) {
-      if (d <= today) {
-        const key = d.toISOString().split('T')[0];
-        const count = dateMap.get(key) || 0;
-        const level = count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : count >= 3 ? 4 : 3;
-        week.push({ key, count, level, month: d.getMonth(), day: d.getDate() });
-      } else {
-        week.push(null);
-      }
-      d.setDate(d.getDate() + 1);
-    }
-    weeks.push(week);
+    const key = d.toISOString().split('T')[0];
+    const count = dateMap.get(key) || 0;
+    const level = count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : count >= 3 ? 4 : 3;
+    const title = `${key}: ${count} workout${count !== 1 ? 's' : ''}`;
+    html += `<div class="heatmap-cell level-${level}" title="${title}"></div>`;
+    d.setDate(d.getDate() + 1);
   }
-
-  const numCols = weeks.length;
-  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
-
-  // Build the grid row by row (month header row, then 7 day rows)
-  let cells = '';
-
-  // Row 1: month labels
-  cells += '<div class="heatmap-label"></div>'; // spacer above day labels
-  let prevMonth = -1;
-  for (const week of weeks) {
-    const firstDay = week[0];
-    if (firstDay && firstDay.month !== prevMonth) {
-      cells += `<div class="heatmap-label">${monthNames[firstDay.month]}</div>`;
-      prevMonth = firstDay.month;
-    } else {
-      cells += '<div class="heatmap-label"></div>';
-    }
-  }
-
-  // Rows 2-8: day rows
-  for (let row = 0; row < 7; row++) {
-    cells += `<div class="heatmap-label heatmap-day-label">${dayLabels[row]}</div>`;
-    for (const week of weeks) {
-      const c = week[row];
-      if (c) {
-        const title = `${c.key}: ${c.count} workout${c.count !== 1 ? 's' : ''}`;
-        cells += `<div class="heatmap-cell level-${c.level}" title="${title}"></div>`;
-      } else {
-        cells += '<div></div>';
-      }
-    }
-  }
-
-  const html = `
-    <div class="heatmap-grid" style="grid-template-columns: auto repeat(${numCols}, 14px); grid-template-rows: auto repeat(7, 14px);">
-      ${cells}
-    </div>
-    <div class="heatmap-legend">
-      <span>Less</span>
-      <div class="heatmap-cell level-0"></div>
-      <div class="heatmap-cell level-1"></div>
-      <div class="heatmap-cell level-2"></div>
-      <div class="heatmap-cell level-3"></div>
-      <div class="heatmap-cell level-4"></div>
-      <span>More</span>
-    </div>`;
+  html += '</div>';
   container.innerHTML = html;
 }
 
