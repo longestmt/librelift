@@ -153,7 +153,14 @@ export async function pullFromWebDav() {
             res = await Capacitor.Plugins.CapacitorHttp.request(options);
             res.ok = res.status >= 200 && res.status < 300;
         } else {
-            res = await fetch(options.url, { ...options, cache: 'no-store' });
+            // Omit Cache-Control header to avoid CORS preflight rejection;
+            // fetch's cache option handles this instead.
+            const { 'Cache-Control': _, ...browserHeaders } = options.headers;
+            res = await fetch(options.url, {
+                method: options.method,
+                headers: browserHeaders,
+                cache: 'no-store'
+            });
         }
     } catch (e) {
         if (e.message && e.message.includes('Failed to fetch')) {
