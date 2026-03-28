@@ -87,10 +87,10 @@ function renderWorkoutsList(container, workouts, allSets) {
     return `<div class="card card-clickable" data-workout-id="${w.id}">
       <div class="card-header">
         <div>
-          <div class="card-title">${w.dayName || 'Workout'}</div>
+          <div class="card-title">${escapeHTML(w.dayName || 'Workout')}</div>
           <div class="flex gap-2" style="margin-top:2px">
-            <span class="text-xs text-muted">${w.date || ''}</span>
-            ${w.planName ? `<span class="badge badge-muted">${w.planName}</span>` : ''}
+            <span class="text-xs text-muted">${escapeHTML(w.date || '')}</span>
+            ${w.planName ? `<span class="badge badge-muted">${escapeHTML(w.planName)}</span>` : ''}
           </div>
         </div>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
@@ -125,14 +125,14 @@ function showWorkoutDetail(workout, sets, onDelete) {
     exerciseMap.get(key).push(s);
   }
 
-  const body = openModal('', { title: workout.dayName || 'Workout' });
+  const body = openModal('', { title: escapeHTML(workout.dayName || 'Workout') });
   body.innerHTML = `
-    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${workout.date}${workout.planName ? ` • ${workout.planName}` : ''}${workout.durationSec ? ` • ${Math.floor(workout.durationSec / 60)}m` : ''}</div>
+    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${escapeHTML(workout.date)}${workout.planName ? ` • ${escapeHTML(workout.planName)}` : ''}${workout.durationSec ? ` • ${Math.floor(workout.durationSec / 60)}m` : ''}</div>
     ${workout.notes ? `<div class="card" style="margin-bottom:var(--sp-3);padding:var(--sp-3)"><div class="text-xs text-muted">Notes</div><div class="text-sm">${escapeHTML(workout.notes)}</div></div>` : ''}
     <div class="flex flex-col gap-4">
       ${[...exerciseMap.entries()].map(([name, exSets]) => `
         <div>
-          <div class="font-semibold text-sm" style="margin-bottom:var(--sp-1);color:var(--accent)">${name}</div>
+          <div class="font-semibold text-sm" style="margin-bottom:var(--sp-1);color:var(--accent)">${escapeHTML(name)}</div>
           <div class="flex flex-col gap-1">
             ${exSets.sort((a, b) => a.setNumber - b.setNumber).map(s => `
               <div class="flex items-center gap-3 text-sm">
@@ -183,7 +183,7 @@ function renderExerciseProgress(container, exercises, allSets) {
       return { value: best.weight, label: '' };
     });
 
-    return `<div class="card"><div class="card-title" style="margin-bottom:var(--sp-2)">${ex.name}</div><div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">${workoutMap.size} sessions • Best: ${Math.max(...exSets.map(s => s.weight))} ${''}</div><div id="chart-${ex.id}"></div></div>`;
+    return `<div class="card"><div class="card-title" style="margin-bottom:var(--sp-2)">${escapeHTML(ex.name)}</div><div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">${workoutMap.size} sessions • Best: ${Math.max(...exSets.map(s => s.weight))} ${''}</div><div id="chart-${ex.id}"></div></div>`;
   }).join('')}</div>`;
 
   // Render charts
