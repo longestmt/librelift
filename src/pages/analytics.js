@@ -5,6 +5,7 @@
 
 import { getAll, getSetting } from '../data/db.js';
 import { createLineChart } from '../components/charts.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 export async function renderAnalyticsPage(container) {
   const workouts = await getAll('workouts');
@@ -44,22 +45,22 @@ export async function renderAnalyticsPage(container) {
   container.innerHTML = `
     <!-- Lifetime Metrics -->
     <div class="card" style="margin-bottom:var(--sp-4)">
-      <div class="card-header"><div class="card-title" style="font-size:var(--text-sm)">Lifetime Metrics</div>${firstDate ? `<span class="text-xs text-muted">Since ${firstDate}</span>` : ''}</div>
+      <div class="card-header"><div class="card-title" style="font-size:var(--text-sm)">Lifetime Metrics</div>${firstDate ? `<span class="text-xs text-muted">Since ${escapeHTML(firstDate)}</span>` : ''}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-top:var(--sp-3)">
         <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${totalWorkouts}</div>
+          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${escapeHTML(String(totalWorkouts))}</div>
           <div class="text-xs text-muted">Workouts</div>
         </div>
         <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${fmtDur(totalDuration)}</div>
+          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${escapeHTML(String(fmtDur(totalDuration)))}</div>
           <div class="text-xs text-muted">Time Training</div>
         </div>
         <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${fmtVol(totalVolume)}</div>
-          <div class="text-xs text-muted">${unit} Lifted</div>
+          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${escapeHTML(String(fmtVol(totalVolume)))}</div>
+          <div class="text-xs text-muted">${escapeHTML(String(unit))} Lifted</div>
         </div>
         <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${totalSets}</div>
+          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${escapeHTML(String(totalSets))}</div>
           <div class="text-xs text-muted">Sets Completed</div>
         </div>
       </div>
@@ -67,19 +68,19 @@ export async function renderAnalyticsPage(container) {
 
     <!-- Weekly Report -->
     <div class="card" style="margin-bottom:var(--sp-4)">
-      <div class="card-header"><div class="card-title" style="font-size:var(--text-sm)">This Week</div><span class="text-xs text-muted">${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — Now</span></div>
+      <div class="card-header"><div class="card-title" style="font-size:var(--text-sm)">This Week</div><span class="text-xs text-muted">${escapeHTML(String(weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })))} — Now</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-3);margin-top:var(--sp-3)">
         <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-lg)">${weekWorkouts.length}</div>
+          <div class="font-bold text-accent" style="font-size:var(--text-lg)">${escapeHTML(String(weekWorkouts.length))}</div>
           <div class="text-xs text-muted">Workouts</div>
         </div>
         <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-lg)">${fmtDur(weekDuration)}</div>
+          <div class="font-bold text-accent" style="font-size:var(--text-lg)">${escapeHTML(String(fmtDur(weekDuration)))}</div>
           <div class="text-xs text-muted">Duration</div>
         </div>
         <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-lg)">${fmtVol(weekVolume)}</div>
-          <div class="text-xs text-muted">${unit} Volume</div>
+          <div class="font-bold text-accent" style="font-size:var(--text-lg)">${escapeHTML(String(fmtVol(weekVolume)))}</div>
+          <div class="text-xs text-muted">${escapeHTML(String(unit))} Volume</div>
         </div>
       </div>
     </div>
@@ -106,9 +107,9 @@ export async function renderAnalyticsPage(container) {
     const sorted = bwEntries.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const latest = sorted[sorted.length - 1];
     const chartData = sorted.map(e => ({ label: (e.date || '').slice(5), value: e.value }));
-    bwArea.innerHTML = `<div class="flex items-center justify-between" style="margin-bottom:var(--sp-2)"><span class="font-bold text-accent" style="font-size:var(--text-lg)">${latest.value} ${latest.unit || unit}</span><span class="text-xs text-muted">${sorted.length} entries</span></div>`;
+    bwArea.innerHTML = `<div class="flex items-center justify-between" style="margin-bottom:var(--sp-2)"><span class="font-bold text-accent" style="font-size:var(--text-lg)">${escapeHTML(String(latest.value))} ${escapeHTML(String(latest.unit || unit))}</span><span class="text-xs text-muted">${escapeHTML(String(sorted.length))} entries</span></div>`;
     const width = Math.min(bwArea.offsetWidth || 300, 500);
-    const chart = createLineChart(chartData, { width, height: 140, label: `Weight (${unit})` });
+    const chart = createLineChart(chartData, { width, height: 140, label: `Weight (${String(unit)})` });
     bwArea.appendChild(chart);
   } else {
     bwArea.innerHTML = `<div class="text-sm text-muted" style="text-align:center;padding:var(--sp-3)">No bodyweight data yet — log it after finishing a workout</div>`;
@@ -159,13 +160,13 @@ function renderMuscleTab(container, sets, exercises, unit) {
     return `
           <div>
             <div class="flex items-center justify-between" style="margin-bottom:var(--sp-1)">
-              <span class="text-sm font-medium">${name}</span>
-              <span class="text-xs text-muted">${data.sets} sets • ${fmtVol(data.volume)} ${unit}</span>
+              <span class="text-sm font-medium">${escapeHTML(String(name))}</span>
+              <span class="text-xs text-muted">${escapeHTML(String(data.sets))} sets • ${escapeHTML(String(fmtVol(data.volume)))} ${escapeHTML(String(unit))}</span>
             </div>
             <div style="height:8px;background:var(--bg-elevated);border-radius:4px;overflow:hidden">
               <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:4px;transition:width 500ms ease"></div>
             </div>
-            <div class="text-xs text-muted" style="margin-top:2px">${data.exercises.size} exercise${data.exercises.size !== 1 ? 's' : ''}</div>
+            <div class="text-xs text-muted" style="margin-top:2px">${escapeHTML(String(data.exercises.size))} exercise${data.exercises.size !== 1 ? 's' : ''}</div>
           </div>`;
   }).join('')}
       </div>
@@ -204,43 +205,43 @@ function renderExerciseTab(container, sets, exercises, workouts, unit) {
     const maxReps = Math.max(...data.sets.map(s => s.reps || 0));
 
     return `
-      <div class="card" data-exercise-card="${exId}">
-        <div class="card-header" style="cursor:pointer" data-toggle-ex="${exId}">
+      <div class="card" data-exercise-card="${escapeHTML(String(exId))}">
+        <div class="card-header" style="cursor:pointer" data-toggle-ex="${escapeHTML(String(exId))}">
           <div>
-            <div class="card-title" style="font-size:var(--text-sm)">${data.name}</div>
-            <div class="text-xs text-muted">${data.sets.length} sets logged</div>
+            <div class="card-title" style="font-size:var(--text-sm)">${escapeHTML(String(data.name))}</div>
+            <div class="text-xs text-muted">${escapeHTML(String(data.sets.length))} sets logged</div>
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" class="chevron-icon"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
-        <div class="exercise-detail" id="detail-${exId}" style="display:none">
+        <div class="exercise-detail" id="detail-${escapeHTML(String(exId))}" style="display:none">
           <!-- PRs -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);margin-top:var(--sp-3)">
             <div class="card" style="padding:var(--sp-2);background:var(--bg-elevated)">
               <div class="text-xs text-muted">Max Weight</div>
-              <div class="font-bold text-accent">${maxWeight} ${unit}</div>
+              <div class="font-bold text-accent">${escapeHTML(String(maxWeight))} ${escapeHTML(String(unit))}</div>
             </div>
             <div class="card" style="padding:var(--sp-2);background:var(--bg-elevated)">
               <div class="text-xs text-muted">Best Est. 1RM</div>
-              <div class="font-bold text-accent">${Math.round(best1RM)} ${unit}</div>
+              <div class="font-bold text-accent">${escapeHTML(String(Math.round(best1RM)))} ${escapeHTML(String(unit))}</div>
             </div>
             <div class="card" style="padding:var(--sp-2);background:var(--bg-elevated)">
               <div class="text-xs text-muted">Max Set Volume</div>
-              <div class="font-bold text-accent">${maxSetVol.toLocaleString()} ${unit}</div>
+              <div class="font-bold text-accent">${escapeHTML(String(maxSetVol.toLocaleString()))} ${escapeHTML(String(unit))}</div>
             </div>
             <div class="card" style="padding:var(--sp-2);background:var(--bg-elevated)">
               <div class="text-xs text-muted">Max Reps</div>
-              <div class="font-bold text-accent">${maxReps}</div>
+              <div class="font-bold text-accent">${escapeHTML(String(maxReps))}</div>
             </div>
           </div>
 
           <!-- Chart selector -->
           <div class="flex gap-1" style="margin-top:var(--sp-3);flex-wrap:wrap">
-            <button class="btn btn-ghost text-xs chart-metric active" data-metric="e1rm" data-ex="${exId}" style="padding:var(--sp-1) var(--sp-2)">Est. 1RM</button>
-            <button class="btn btn-ghost text-xs chart-metric" data-metric="best" data-ex="${exId}" style="padding:var(--sp-1) var(--sp-2)">Best Set</button>
-            <button class="btn btn-ghost text-xs chart-metric" data-metric="volume" data-ex="${exId}" style="padding:var(--sp-1) var(--sp-2)">Volume</button>
-            <button class="btn btn-ghost text-xs chart-metric" data-metric="reps" data-ex="${exId}" style="padding:var(--sp-1) var(--sp-2)">Max Reps</button>
+            <button class="btn btn-ghost text-xs chart-metric active" data-metric="e1rm" data-ex="${escapeHTML(String(exId))}" style="padding:var(--sp-1) var(--sp-2)">Est. 1RM</button>
+            <button class="btn btn-ghost text-xs chart-metric" data-metric="best" data-ex="${escapeHTML(String(exId))}" style="padding:var(--sp-1) var(--sp-2)">Best Set</button>
+            <button class="btn btn-ghost text-xs chart-metric" data-metric="volume" data-ex="${escapeHTML(String(exId))}" style="padding:var(--sp-1) var(--sp-2)">Volume</button>
+            <button class="btn btn-ghost text-xs chart-metric" data-metric="reps" data-ex="${escapeHTML(String(exId))}" style="padding:var(--sp-1) var(--sp-2)">Max Reps</button>
           </div>
-          <div class="chart-container" id="chart-${exId}" style="margin-top:var(--sp-2)"></div>
+          <div class="chart-container" id="chart-${escapeHTML(String(exId))}" style="margin-top:var(--sp-2)"></div>
         </div>
       </div>`;
   }).join('')}
