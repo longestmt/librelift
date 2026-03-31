@@ -2,11 +2,12 @@
  * history.js — Workout History page
  */
 
-import { getAll, getById, getByIndex, softDelete } from '../data/db.js';
+import { getAll, getById, getByIndex, softDelete, put } from '../data/db.js';
 import { createLineChart } from '../components/charts.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 import { escapeHTML } from '../utils/sanitize.js';
+import { formatDuration } from '../utils/format.js';
 
 export async function renderHistoryPage(container) {
   const workouts = await getAll('workouts');
@@ -81,7 +82,7 @@ function renderWorkoutsList(container, workouts, allSets) {
   container.innerHTML = `<div class="flex flex-col gap-3">${workouts.map(w => {
     const wSets = allSets.filter(s => s.workoutId === w.id);
     const vol = wSets.reduce((s, r) => s + (r.completed ? r.weight * r.reps : 0), 0);
-    const dur = w.durationSec ? `${Math.floor(w.durationSec / 60)}m` : '';
+    const dur = w.durationSec ? formatDuration(w.durationSec) : '';
     const completed = wSets.filter(s => s.completed).length;
 
     return `<div class="card card-clickable" data-workout-id="${w.id}">
@@ -126,8 +127,10 @@ function showWorkoutDetail(workout, sets, onDelete) {
   }
 
   const body = openModal('', { title: workout.dayName || 'Workout' });
+  const durMin = workout.durationSec ? Math.floor(workout.durationSec / 60) : null;
+  const durDisplay = durMin != null ? formatDuration(workout.durationSec) : '';
   body.innerHTML = `
-    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${workout.date}${workout.planName ? ` • ${workout.planName}` : ''}${workout.durationSec ? ` • ${Math.floor(workout.durationSec / 60)}m` : ''}</div>
+    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${workout.date}${workout.planName ? ` • ${workout.planName}` : ''}${durDisplay ? ` • <span id="dur-display" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Tap to edit">${durDisplay}</span>` : ''}</div>
     ${workout.notes ? `<div class="card" style="margin-bottom:var(--sp-3);padding:var(--sp-3)"><div class="text-xs text-muted">Notes</div><div class="text-sm">${escapeHTML(workout.notes)}</div></div>` : ''}
     <div class="flex flex-col gap-4">
       ${[...exerciseMap.entries()].map(([name, exSets]) => `
@@ -164,6 +167,27 @@ function showWorkoutDetail(workout, sets, onDelete) {
     showToast('Workout deleted', 'success');
     if (onDelete) onDelete();
   });
+
+  // Editable duration
+  const durEl = body.querySelector('#dur-display');
+  if (durEl) {
+    durEl.addEventListener('click', () => {
+      const currentMin = Math.floor(workout.durationSec / 60);
+      durEl.outerHTML = `<span id="dur-edit" class="flex items-center gap-1" style="display:inline-flex"><input class="input-inline" type="number" id="dur-edit-input" value="${currentMin}" style="width:56px;font-size:var(--text-xs)" inputmode="numeric" /><span>min</span><button class="btn btn-ghost text-xs" id="dur-edit-save" style="padding:0 var(--sp-1);min-height:0">Save</button></span>`;
+      const editInput = body.querySelector('#dur-edit-input');
+      editInput.focus();
+      editInput.select();
+      body.querySelector('#dur-edit-save').addEventListener('click', async () => {
+        const val = parseInt(editInput.value);
+        if (!val || val <= 0) { showToast('Enter a valid duration', 'danger'); return; }
+        workout.durationSec = val * 60;
+        await put('workouts', workout);
+        body.querySelector('#dur-edit').outerHTML = `<span id="dur-display" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Tap to edit">${formatDuration(workout.durationSec)}</span>`;
+        showToast('Duration updated', 'success');
+        if (onDelete) onDelete(); // re-render list to reflect change
+      });
+    });
+  }
 }
 
 function renderExerciseProgress(container, exercises, allSets) {

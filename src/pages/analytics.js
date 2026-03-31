@@ -5,6 +5,7 @@
 
 import { getAll, getSetting } from '../data/db.js';
 import { createLineChart } from '../components/charts.js';
+import { formatDuration } from '../utils/format.js';
 
 export async function renderAnalyticsPage(container) {
   const workouts = await getAll('workouts');
@@ -34,11 +35,7 @@ export async function renderAnalyticsPage(container) {
   const firstDate = workouts.length > 0 ? workouts.reduce((min, w) => w.date < min ? w.date : min, workouts[0].date) : null;
   const daysSinceStart = firstDate ? Math.max(1, Math.floor((now - new Date(firstDate)) / 86400000)) : 0;
 
-  const fmtDur = (sec) => {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-  };
+  const fmtDur = formatDuration;
   const fmtVol = (v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toLocaleString();
 
   container.innerHTML = `
