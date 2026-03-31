@@ -13,6 +13,8 @@ export async function renderSettingsPage(container) {
   const unit = await getSetting('unit', 'lb');
   const barWeight = await getSetting('barWeight', unit === 'kg' ? 20 : 45);
   const restTimer = await getSetting('restTimer', 90);
+  const autoPauseMin = await getSetting('autoPauseMin', 15);
+  const maxWorkoutMin = await getSetting('maxWorkoutMin', 120);
   const theme = await getSetting('theme', 'dark');
   const plates = await getSetting('plateInventory', null);
   const defaultPlates = unit === 'kg' ? { ...STANDARD_PLATES_KG } : { ...STANDARD_PLATES_LB };
@@ -50,6 +52,28 @@ export async function renderSettingsPage(container) {
           <div class="flex items-center gap-2">
             <input class="input-inline" type="number" id="rest-timer" aria-label="Rest timer duration in seconds" value="${restTimer}" style="width:72px" inputmode="numeric" />
             <span class="text-sm text-muted">sec</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Auto-Pause -->
+      <div class="card">
+        <div class="flex items-center justify-between">
+          <div><div class="card-title">Auto-Pause</div><div class="text-xs text-muted">Pause workout after inactivity (0 to disable)</div></div>
+          <div class="flex items-center gap-2">
+            <input class="input-inline" type="number" id="auto-pause" aria-label="Auto-pause timeout in minutes" value="${autoPauseMin}" style="width:72px" inputmode="numeric" />
+            <span class="text-sm text-muted">min</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Max Workout Duration -->
+      <div class="card">
+        <div class="flex items-center justify-between">
+          <div><div class="card-title">Max Workout Duration</div><div class="text-xs text-muted">Prompt to confirm if workout exceeds this (0 to disable)</div></div>
+          <div class="flex items-center gap-2">
+            <input class="input-inline" type="number" id="max-workout" aria-label="Maximum workout duration in minutes" value="${maxWorkoutMin}" style="width:72px" inputmode="numeric" />
+            <span class="text-sm text-muted">min</span>
           </div>
         </div>
       </div>
@@ -148,6 +172,18 @@ export async function renderSettingsPage(container) {
   container.querySelector('#rest-timer').addEventListener('change', async (e) => {
     await setSetting('restTimer', parseInt(e.target.value) || 90);
     showToast('Rest timer saved', 'success');
+  });
+
+  // Auto-pause
+  container.querySelector('#auto-pause').addEventListener('change', async (e) => {
+    await setSetting('autoPauseMin', parseInt(e.target.value) || 0);
+    showToast('Auto-pause saved', 'success');
+  });
+
+  // Max workout duration
+  container.querySelector('#max-workout').addEventListener('change', async (e) => {
+    await setSetting('maxWorkoutMin', parseInt(e.target.value) || 0);
+    showToast('Max duration saved', 'success');
   });
 
   // Theme toggle

@@ -12,9 +12,17 @@ import { uuid } from '../data/db.js';
 import { saveSession, loadSession, clearSession } from '../data/session.js';
 import { hapticLight, hapticMedium, hapticHeavy, hapticSuccess } from '../utils/haptics.js';
 import { escapeHTML } from '../utils/sanitize.js';
+import { formatDuration } from '../utils/format.js';
 
 let activeWorkout = null;
 let workoutInterval = null;
+let inactivityInterval = null;
+
+function trackActivity() {
+  if (!activeWorkout) return;
+  activeWorkout.lastActivityAt = Date.now();
+  saveSession(activeWorkout);
+}
 
 export async function renderWorkoutPage(container) {
   const unit = await getSetting('unit', 'lb');
@@ -157,7 +165,7 @@ function startEmptyWorkout() {
   saveSession(activeWorkout);
 }
 
-function renderActiveWorkout(container, unit) {
+async function renderActiveWorkout(container, unit) {
   container.innerHTML = `
     <div class="flex items-center justify-between" style="margin-bottom:var(--sp-4)">
       <div><h1 class="page-title" style="font-size:var(--text-xl)">${activeWorkout.dayName || 'Workout'}</h1>
@@ -210,7 +218,48 @@ function renderActiveWorkout(container, unit) {
     }
   });
 
-  container.querySelector('#workout-notes').addEventListener('input', (e) => { activeWorkout.notes = e.target.value; saveSession(activeWorkout); });
+  container.querySelector('#workout-notes').addEventListener('input', (e) => { activeWorkout.notes = e.target.value; trackActivity(); });
+
+  // Initialize lastActivityAt if not set (e.g. workouts started before this feature)
+  if (!activeWorkout.lastActivityAt) {
+    activeWorkout.lastActivityAt = Date.now();
+    saveSession(activeWorkout);
+  }
+
+  // Auto-pause on inactivity
+  const autoPauseMin = await getSetting('autoPauseMin', 15);
+  if (autoPauseMin > 0) {
+    if (inactivityInterval) clearInterval(inactivityInterval);
+    inactivityInterval = setInterval(() => {
+      if (!activeWorkout || activeWorkout.pausedAt) return;
+      const idle = Date.now() - (activeWorkout.lastActivityAt || activeWorkout.startTime);
+      if (idle >= autoPauseMin * 60 * 1000) {
+        // Auto-pause
+        activeWorkout.pausedAt = Date.now();
+        saveSession(activeWorkout);
+        if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+        const clk = container.querySelector('#workout-clock');
+        if (clk) clk.style.opacity = '0.5';
+        showToast('Workout auto-paused due to inactivity', 'info');
+      }
+    }, 30000);
+
+    // Also check on visibility change (returning from background)
+    document.addEventListener('visibilitychange', function onVisChange() {
+      if (!activeWorkout) { document.removeEventListener('visibilitychange', onVisChange); return; }
+      if (document.visibilityState === 'visible' && !activeWorkout.pausedAt) {
+        const idle = Date.now() - (activeWorkout.lastActivityAt || activeWorkout.startTime);
+        if (idle >= autoPauseMin * 60 * 1000) {
+          activeWorkout.pausedAt = Date.now();
+          saveSession(activeWorkout);
+          if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+          const clk = container.querySelector('#workout-clock');
+          if (clk) clk.style.opacity = '0.5';
+          showToast('Workout auto-paused due to inactivity', 'info');
+        }
+      }
+    });
+  }
 
   renderWorkoutExercises(exContainer, unit);
 
@@ -282,7 +331,7 @@ function setupWorkoutEvents(container, unit) {
     if (swapBtn) { e.stopPropagation(); const ei = parseInt(swapBtn.dataset.swapEx); showSwapPicker(ei, container, unit); return; }
 
     const toggle = e.target.closest('[data-toggle]');
-    if (toggle) { const ei = parseInt(toggle.dataset.toggle); activeWorkout.exercises[ei].collapsed = !activeWorkout.exercises[ei].collapsed; saveSession(activeWorkout); renderWorkoutExercises(container, unit); return; }
+    if (toggle) { const ei = parseInt(toggle.dataset.toggle); activeWorkout.exercises[ei].collapsed = !activeWorkout.exercises[ei].collapsed; trackActivity(); renderWorkoutExercises(container, unit); return; }
 
     const check = e.target.closest('.set-check');
     if (check) {
@@ -305,7 +354,7 @@ function setupWorkoutEvents(container, unit) {
         // Haptics & Animation
         hapticHeavy();
 
-        saveSession(activeWorkout);
+        trackActivity();
         renderWorkoutExercises(container, unit);
 
         // Trigger animation on the newly rendered check button
@@ -321,17 +370,17 @@ function setupWorkoutEvents(container, unit) {
         set.completed = false;
 
         hapticLight();
-        saveSession(activeWorkout);
+        trackActivity();
         renderWorkoutExercises(container, unit);
       }
       return;
     }
 
     const removeSet = e.target.closest('[data-remove-set]');
-    if (removeSet) { const ei = parseInt(removeSet.dataset.removeSet); const ex = activeWorkout.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); ex.sets.forEach((s, i) => s.setNumber = i + 1); saveSession(activeWorkout); renderWorkoutExercises(container, unit); } return; }
+    if (removeSet) { const ei = parseInt(removeSet.dataset.removeSet); const ex = activeWorkout.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); ex.sets.forEach((s, i) => s.setNumber = i + 1); trackActivity(); renderWorkoutExercises(container, unit); } return; }
 
     const addSet = e.target.closest('[data-add-set]');
-    if (addSet) { const ei = parseInt(addSet.dataset.addSet); const ex = activeWorkout.exercises[ei]; const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }); saveSession(activeWorkout); renderWorkoutExercises(container, unit); return; }
+    if (addSet) { const ei = parseInt(addSet.dataset.addSet); const ex = activeWorkout.exercises[ei]; const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }); trackActivity(); renderWorkoutExercises(container, unit); return; }
 
     const noteBtn = e.target.closest('[data-ex-note]');
     if (noteBtn) {
@@ -342,7 +391,7 @@ function setupWorkoutEvents(container, unit) {
               <button class="btn btn-primary btn-full" id="save-note-btn" style="margin-top:var(--sp-3)">Save</button>`;
       body.querySelector('#save-note-btn').addEventListener('click', () => {
         ex.notes = body.querySelector('#ex-note-input').value;
-        saveSession(activeWorkout);
+        trackActivity();
         closeModal();
         renderWorkoutExercises(container, unit);
       });
@@ -356,7 +405,7 @@ function setupWorkoutEvents(container, unit) {
     const ei = parseInt(input.dataset.ei), si = parseInt(input.dataset.si), field = input.dataset.field;
     const val = parseFloat(input.value) || 0;
     activeWorkout.exercises[ei].sets[si][field] = val;
-    saveSession(activeWorkout);
+    trackActivity();
   });
 }
 
@@ -368,12 +417,55 @@ function updateWorkoutClock(el) {
 
 async function finishWorkout(container, unit) {
   if (!activeWorkout) return;
+
+  const endTime = activeWorkout.pausedAt || Date.now();
+  const dur = Math.floor((endTime - activeWorkout.startTime) / 1000);
+  const maxWorkoutMin = await getSetting('maxWorkoutMin', 120);
+
+  // Duration sanity check
+  if (maxWorkoutMin > 0 && dur > maxWorkoutMin * 60) {
+    const h = Math.floor(dur / 3600);
+    const m = Math.floor((dur % 3600) / 60);
+    const displayDur = h > 0 ? `${h}h ${m}m` : `${m}m`;
+
+    const body = openModal('', { title: 'Duration Check' });
+    const hasActivity = !!activeWorkout.lastActivityAt;
+    const activityDur = hasActivity ? Math.floor((activeWorkout.lastActivityAt - activeWorkout.startTime) / 1000) : dur;
+    const activityMin = Math.floor(activityDur / 60);
+
+    body.innerHTML = `
+      <p class="text-secondary" style="margin-bottom:var(--sp-4)">This workout is showing as <strong>${displayDur}</strong>. Does that look right?</p>
+      <div class="flex flex-col gap-2">
+        <button class="btn btn-secondary btn-full" id="dur-keep">Yes, save as-is</button>
+        ${hasActivity ? `<button class="btn btn-full" id="dur-activity" style="background:var(--bg-elevated);color:var(--text)">Use last activity time (${activityMin}m)</button>` : ''}
+        <div class="flex items-center gap-2" style="margin-top:var(--sp-2)">
+          <input class="input" type="number" id="dur-manual-input" placeholder="Minutes" inputmode="numeric" style="flex:1" />
+          <button class="btn btn-primary" id="dur-manual-save">Save</button>
+        </div>
+      </div>`;
+
+    body.querySelector('#dur-keep').addEventListener('click', () => { closeModal(); commitFinish(container, unit, dur); });
+    if (hasActivity) {
+      body.querySelector('#dur-activity').addEventListener('click', () => { closeModal(); commitFinish(container, unit, activityDur); });
+    }
+    body.querySelector('#dur-manual-save').addEventListener('click', () => {
+      const val = parseInt(body.querySelector('#dur-manual-input').value);
+      if (!val || val <= 0) { showToast('Enter a valid duration in minutes', 'danger'); return; }
+      closeModal();
+      commitFinish(container, unit, val * 60);
+    });
+    return;
+  }
+
+  commitFinish(container, unit, dur);
+}
+
+async function commitFinish(container, unit, dur) {
   hapticSuccess();
   clearSession();
+  if (inactivityInterval) { clearInterval(inactivityInterval); inactivityInterval = null; }
 
   try {
-    const endTime = activeWorkout.pausedAt || Date.now();
-    const dur = Math.floor((endTime - activeWorkout.startTime) / 1000);
     if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
 
     // Clean up timer bar from body
@@ -392,14 +484,14 @@ async function finishWorkout(container, unit) {
 
     const vol = allSets.reduce((s, r) => s + (r.completed ? r.weight * r.reps : 0), 0);
     const done = allSets.filter(s => s.completed).length;
-    const min = Math.floor(dur / 60);
+    const durStr = formatDuration(dur);
 
     // Get last bodyweight for pre-fill
     const bwEntries = await getAll('bodyWeight');
     const lastBW = bwEntries.sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
 
     container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${activeWorkout.dayName}</p></div>
-        <div class="card" style="margin-top:var(--sp-6)"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);text-align:center"><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${min}m</div><div class="text-xs text-muted">Duration</div></div><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${vol.toLocaleString()}</div><div class="text-xs text-muted">Volume</div></div><div><div class="font-bold text-success" style="font-size:var(--text-xl)">${done}/${allSets.length}</div><div class="text-xs text-muted">Sets</div></div></div></div>
+        <div class="card" style="margin-top:var(--sp-6)"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);text-align:center"><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${durStr}</div><div class="text-xs text-muted">Duration</div></div><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${vol.toLocaleString()}</div><div class="text-xs text-muted">Volume</div></div><div><div class="font-bold text-success" style="font-size:var(--text-xl)">${done}/${allSets.length}</div><div class="text-xs text-muted">Sets</div></div></div></div>
         <div class="card" style="margin-top:var(--sp-3);padding:var(--sp-3)">
           <div class="flex items-center gap-3">
             <span style="font-size:20px">⚖️</span>
@@ -466,6 +558,7 @@ async function cancelWorkout(container, unit) {
 
 function cleanupWorkout() {
   if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+  if (inactivityInterval) { clearInterval(inactivityInterval); inactivityInterval = null; }
   const timerBar = document.querySelector('.rest-timer-bar');
   if (timerBar) timerBar.remove();
   stopTimer();
