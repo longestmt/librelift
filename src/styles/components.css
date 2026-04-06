@@ -438,6 +438,134 @@ textarea.input {
     border-left: 3px solid var(--info);
 }
 
+/* ---------- RM Calculator ---------- */
+.rm-formula-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--sp-2);
+}
+
+.rm-formula-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: var(--sp-2);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.rm-formula-btn:hover {
+    border-color: var(--text-muted);
+}
+
+.rm-formula-btn.active {
+    border-color: var(--accent);
+    background: rgba(212, 204, 180, .08);
+}
+
+.rm-table {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.rm-table-row {
+    display: grid;
+    grid-template-columns: 48px 1fr 56px;
+    align-items: center;
+    padding: var(--sp-2) var(--sp-3);
+    font-size: var(--text-sm);
+    border-bottom: 1px solid var(--border);
+}
+
+.rm-table-row:last-child {
+    border-bottom: none;
+}
+
+.rm-table-current {
+    background: rgba(212, 204, 180, .08);
+}
+
+.rm-table-reps {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+}
+
+.rm-table-reps::after {
+    content: ' RM';
+}
+
+.rm-table-pct {
+    text-align: right;
+    font-size: var(--text-xs);
+}
+
+/* ---------- Superset ---------- */
+.superset-wrapper {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+    background: var(--bg-card);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+
+.superset-header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--border);
+}
+
+.superset-link-zone {
+    opacity: 0.4;
+    transition: opacity 150ms ease;
+}
+
+.superset-link-zone:hover {
+    opacity: 1;
+}
+
+.toast-pr {
+    border-left: 3px solid var(--accent);
+    background: linear-gradient(135deg, var(--bg-elevated), color-mix(in srgb, var(--accent) 8%, var(--bg-elevated)));
+    animation: slideDown var(--duration-normal) var(--ease-spring);
+}
+
+.toast-pr .pr-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+
+.toast-pr .pr-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.toast-pr .pr-title {
+    font-weight: var(--weight-bold);
+    color: var(--accent);
+    font-size: var(--text-sm);
+}
+
+.toast-pr .pr-detail {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
 /* ---------- Divider ---------- */
 .divider {
     height: 1px;

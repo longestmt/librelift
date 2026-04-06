@@ -8,6 +8,8 @@ import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 import { createLineChart } from '../components/charts.js';
 import { getExerciseHistory } from '../engine/progression.js';
+import { createRMCalculator } from '../components/rm-calculator.js';
+import { getSetting } from '../data/db.js';
 
 export async function renderExercisesPage(container) {
     const exercises = await getAll('exercises');
@@ -140,11 +142,33 @@ export async function renderExercisesPage(container) {
 
       <div class="text-sm text-secondary" style="margin-bottom:var(--sp-2)">Progression History</div>
       <div id="exercise-chart" style="display:flex; justify-content:center;"></div>
+
+      <div class="divider" style="margin-top:var(--sp-3)"></div>
+      <button class="btn btn-secondary btn-full" id="open-rm-calc" style="margin-top:var(--sp-2)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="3"/></svg>
+        1RM Calculator
+      </button>
+      <div id="rm-calc-container" style="display:none;margin-top:var(--sp-3)"></div>
     `;
 
         const chartContainer = body.querySelector('#exercise-chart');
         const chart = createLineChart(chartData, { width: Math.min(340, window.innerWidth - 80), height: 140 });
         chartContainer.appendChild(chart);
+
+        // 1RM Calculator toggle
+        const rmCalcBtn = body.querySelector('#open-rm-calc');
+        const rmCalcContainer = body.querySelector('#rm-calc-container');
+        rmCalcBtn.addEventListener('click', async () => {
+            if (rmCalcContainer.style.display === 'none') {
+                const lastWeight = history.length > 0 ? history[history.length - 1].weight : 0;
+                const lastReps = history.length > 0 ? history[history.length - 1].reps : 0;
+                const el = await createRMCalculator(lastWeight, lastReps);
+                rmCalcContainer.innerHTML = '';
+                rmCalcContainer.appendChild(el);
+                rmCalcContainer.style.display = '';
+                rmCalcBtn.style.display = 'none';
+            }
+        });
     });
 
     // FAB for adding custom exercise

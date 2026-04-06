@@ -25,7 +25,7 @@ const PLATE_HEIGHTS = {
 
 export async function createPlateCalculator(targetWeight) {
     const unit = await getSetting('unit', 'lb');
-    const barWeight = await getSetting('barWeight', unit === 'kg' ? 20 : 45);
+    let barWeight = await getSetting('barWeight', unit === 'kg' ? 20 : 45);
     const savedPlates = await getSetting('plateInventory', null);
     const defaultPlates = unit === 'kg' ? { ...STANDARD_PLATES_KG } : { ...STANDARD_PLATES_LB };
 
@@ -34,34 +34,54 @@ export async function createPlateCalculator(targetWeight) {
         Object.keys(defaultPlates).map(k => [k, 8])
     );
 
-    const result = calculatePlates(targetWeight, barWeight, plateInventory);
-
     const el = document.createElement('div');
     el.style.padding = 'var(--sp-3) 0';
 
-    if (targetWeight <= barWeight) {
-        el.innerHTML = `<div class="text-center text-muted text-sm">Bar only (${barWeight} ${unit})</div>`;
-        return el;
+    // Bar weight input (stable, never re-rendered)
+    const barDiv = document.createElement('div');
+    barDiv.className = 'flex items-center gap-2';
+    barDiv.style.marginBottom = 'var(--sp-3)';
+    barDiv.innerHTML = `
+      <label class="text-xs text-muted" style="white-space:nowrap">Bar weight</label>
+      <input class="input" type="number" id="plate-bar-weight" value="${barWeight}" inputmode="decimal" style="width:80px;padding:var(--sp-1) var(--sp-2);font-size:var(--text-sm)" />
+      <span class="text-xs text-muted">${unit}</span>`;
+    el.appendChild(barDiv);
+
+    // Results container (re-rendered when bar weight changes)
+    const resultsDiv = document.createElement('div');
+    el.appendChild(resultsDiv);
+
+    function updatePlates() {
+        const result = calculatePlates(targetWeight, barWeight, plateInventory);
+
+        if (targetWeight <= barWeight) {
+            resultsDiv.innerHTML = `<div class="text-center text-muted text-sm">Bar only (${barWeight} ${unit})</div>`;
+            return;
+        }
+
+        const plateHTML = buildPlateVisual(result.perSide, unit);
+        resultsDiv.innerHTML = `
+        <div class="plate-bar">
+          <div style="display:flex; align-items:center; flex-direction:row-reverse; gap:2px;">
+            ${plateHTML}
+          </div>
+          <div class="plate-bar-center"></div>
+          <div style="display:flex; align-items:center; gap:2px;">
+            ${plateHTML}
+          </div>
+        </div>
+        <div class="text-center text-sm text-secondary" style="margin-top:var(--sp-2)">
+          ${result.perSide.map(p => `${p.count}×${p.weight}${unit}`).join(' + ') || 'No plates'} per side
+          ${result.remainder > 0 ? `<br><span class="text-danger">⚠ ${result.remainder}${unit} unachievable with available plates</span>` : ''}
+        </div>`;
     }
 
-    // Build plate visual
-    const plateHTML = buildPlateVisual(result.perSide, unit);
-    el.innerHTML = `
-    <div class="plate-bar">
-      <div style="display:flex; align-items:center; flex-direction:row-reverse; gap:2px;">
-        ${plateHTML}
-      </div>
-      <div class="plate-bar-center"></div>
-      <div style="display:flex; align-items:center; gap:2px;">
-        ${plateHTML}
-      </div>
-    </div>
-    <div class="text-center text-sm text-secondary" style="margin-top:var(--sp-2)">
-      ${result.perSide.map(p => `${p.count}×${p.weight}${unit}`).join(' + ') || 'No plates'} per side
-      ${result.remainder > 0 ? `<br><span class="text-danger">⚠ ${result.remainder}${unit} unachievable with available plates</span>` : ''}
-    </div>
-  `;
+    barDiv.querySelector('#plate-bar-weight').addEventListener('input', (e) => {
+        barWeight = parseFloat(e.target.value) || 0;
+        updatePlates();
+    });
 
+    updatePlates();
     return el;
 }
 

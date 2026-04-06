@@ -28,3 +28,24 @@ export function showToast(message, type = 'info', duration = 3000) {
         setTimeout(() => toast.remove(), 200);
     }, duration);
 }
+
+export function showPRToast(exerciseName, pr, unit) {
+    const c = ensureContainer();
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-pr';
+    const detail = pr.prev ? `Previous best: ${pr.prev} ${unit}` : '';
+    toast.innerHTML = `
+    <span class="pr-icon">🏆</span>
+    <span class="pr-text">
+      <span class="pr-title">Personal Record!</span>
+      <span class="pr-detail">${exerciseName} — ${pr.label} ${unit}${detail ? ` (was ${pr.prev} ${unit})` : ''}</span>
+    </span>`;
+    c.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-8px)';
+        toast.style.transition = 'all 200ms ease-out';
+        setTimeout(() => toast.remove(), 200);
+    }, 4000);
+}

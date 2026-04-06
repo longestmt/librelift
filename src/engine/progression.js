@@ -183,6 +183,52 @@ export function calculatePlates(targetWeight, barWeight, plateInventory) {
     };
 }
 
+/**
+ * Check if a completed set is a personal record.
+ * Returns an object describing the PR, or null if no record was broken.
+ * Checks: heaviest weight at this rep count, and best estimated 1RM.
+ */
+export async function checkPersonalRecord(exerciseId, weight, reps) {
+    if (!exerciseId || !weight || weight <= 0 || !reps || reps <= 0) return null;
+
+    const allSets = await getByIndex('sets', 'exerciseId', exerciseId);
+    const completedSets = allSets.filter(s => s.completed && s.weight > 0 && s.reps > 0);
+
+    if (completedSets.length === 0) return null; // First-ever set, not a "record"
+
+    const records = [];
+
+    // Check weight PR at this rep count
+    const setsAtReps = completedSets.filter(s => s.reps >= reps);
+    const prevMaxWeight = setsAtReps.length > 0 ? Math.max(...setsAtReps.map(s => s.weight)) : 0;
+    if (weight > prevMaxWeight && prevMaxWeight > 0) {
+        if (reps === 1) {
+            records.push({ type: '1RM', label: `New 1RM: ${weight}`, prev: prevMaxWeight });
+        } else {
+            records.push({ type: 'weight', label: `New ${reps}RM: ${weight}`, prev: prevMaxWeight });
+        }
+    }
+
+    // Check estimated 1RM PR (only for sets with reps > 1)
+    if (reps > 1) {
+        const current1RM = estimate1RM(weight, reps);
+        const prev1RM = completedSets.length > 0
+            ? Math.max(...completedSets.map(s => estimate1RM(s.weight, s.reps)))
+            : 0;
+        if (current1RM > prev1RM && prev1RM > 0 && records.length === 0) {
+            records.push({ type: 'e1rm', label: `New Est. 1RM: ${Math.round(current1RM)}`, prev: Math.round(prev1RM) });
+        }
+    }
+
+    return records.length > 0 ? records[0] : null;
+}
+
+function estimate1RM(weight, reps) {
+    if (!weight || !reps || reps <= 0) return 0;
+    if (reps === 1) return weight;
+    return weight * (1 + reps / 30); // Epley formula
+}
+
 function roundToNearest(value, nearest) {
     return Math.round(value / nearest) * nearest;
 }
