@@ -229,7 +229,7 @@ function renderPlanCard(plan) {
 }
 
 function showPlanDetail(plan, allExercises) {
-  const body = openModal('', { title: escapeHTML(plan.name || '') });
+  const body = openModal('', { title: plan.name || '' });
   const nextDayIndex = plan.currentDayIndex || 0;
 
   body.innerHTML = `
