@@ -2,6 +2,8 @@
  * toast.js — Toast notification system
  */
 
+import { escapeHTML } from '../utils/sanitize.js';
+
 let container = null;
 
 function ensureContainer() {
@@ -17,7 +19,7 @@ export function showToast(message, type = 'info', duration = 3000) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `
-    <span>${message}</span>
+    <span>${escapeHTML(String(message))}</span>
   `;
     c.appendChild(toast);
 
@@ -33,12 +35,13 @@ export function showPRToast(exerciseName, pr, unit) {
     const c = ensureContainer();
     const toast = document.createElement('div');
     toast.className = 'toast toast-pr';
-    const detail = pr.prev ? `Previous best: ${pr.prev} ${unit}` : '';
+    const escapedUnit = escapeHTML(String(unit));
+    const detail = pr.prev ? `Previous best: ${escapeHTML(String(pr.prev))} ${escapedUnit}` : '';
     toast.innerHTML = `
     <span class="pr-icon">🏆</span>
     <span class="pr-text">
       <span class="pr-title">Personal Record!</span>
-      <span class="pr-detail">${exerciseName} — ${pr.label} ${unit}${detail ? ` (was ${pr.prev} ${unit})` : ''}</span>
+      <span class="pr-detail">${escapeHTML(String(exerciseName))} — ${escapeHTML(String(pr.label))} ${escapedUnit}${detail ? ` (was ${escapeHTML(String(pr.prev))} ${escapedUnit})` : ''}</span>
     </span>`;
     c.appendChild(toast);
 
