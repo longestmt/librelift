@@ -184,7 +184,11 @@ export async function exportAllData() {
     for (const name of allStores) {
         if (!db.objectStoreNames.contains(name)) continue;
         const store = await getStore(name);
-        data.stores[name] = await promisifyRequest(store.getAll());
+        let items = await promisifyRequest(store.getAll());
+        if (name === 'settings') {
+            items = items.filter(s => !['webdavUrl', 'webdavUsername', 'webdavPassword', 'githubPAT', 'githubGistId'].includes(s.key));
+        }
+        data.stores[name] = items;
     }
     return data;
 }
