@@ -6,3 +6,8 @@
 **Vulnerability:** XSS (Cross-Site Scripting) risk from unescaped parameters passed to reusable UI components (`openModal`'s `title` option and `showToast`/`showPRToast` message inputs) being interpolated directly into `innerHTML`.
 **Learning:** Depending on callers to sanitize parameters before calling generic UI functions creates a high risk of developer oversight, which was the case for many invocations of these components across the codebase. Centralizing the `escapeHTML` check within the component itself completely mitigates this entire class of bugs and avoids double-escaping issues.
 **Prevention:** Sanitize inputs like `title`, `message`, and related text parameters directly inside utility components (e.g., modals, toasts, cards) using `escapeHTML` *before* inserting them into `innerHTML`.
+
+## 2024-05-25 - Stored XSS via Unescaped Local Data in DOM Template Strings
+**Vulnerability:** User-provided attributes for exercises (like `name`, `instructions`, `mediaUrl`) were read from IndexedDB and concatenated directly into `innerHTML` strings without being escaped in `src/pages/exercises.js`.
+**Learning:** Even though the data is stored locally in IndexedDB, if a malicious payload is saved (e.g. via syncing from a compromised backend/WebDAV, or another malicious local script), rendering it without escaping allows execution of arbitrary scripts (Stored XSS).
+**Prevention:** All data, even from local storage/IndexedDB, must be treated as untrusted and passed through `escapeHTML()` before being inserted into the DOM via `innerHTML` template strings.
