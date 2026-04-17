@@ -42,7 +42,7 @@ export async function createPlateCalculator(targetWeight) {
     barDiv.className = 'flex items-center gap-2';
     barDiv.style.marginBottom = 'var(--sp-3)';
     barDiv.innerHTML = `
-      <label class="text-xs text-muted" style="white-space:nowrap">Bar weight</label>
+      <label class="text-xs text-muted" for="plate-bar-weight" style="white-space:nowrap">Bar weight</label>
       <input class="input" type="number" id="plate-bar-weight" value="${barWeight}" inputmode="decimal" style="width:80px;padding:var(--sp-1) var(--sp-2);font-size:var(--text-sm)" />
       <span class="text-xs text-muted">${unit}</span>`;
     el.appendChild(barDiv);
