@@ -6,3 +6,8 @@
 **Vulnerability:** XSS (Cross-Site Scripting) risk from unescaped parameters passed to reusable UI components (`openModal`'s `title` option and `showToast`/`showPRToast` message inputs) being interpolated directly into `innerHTML`.
 **Learning:** Depending on callers to sanitize parameters before calling generic UI functions creates a high risk of developer oversight, which was the case for many invocations of these components across the codebase. Centralizing the `escapeHTML` check within the component itself completely mitigates this entire class of bugs and avoids double-escaping issues.
 **Prevention:** Sanitize inputs like `title`, `message`, and related text parameters directly inside utility components (e.g., modals, toasts, cards) using `escapeHTML` *before* inserting them into `innerHTML`.
+
+## 2024-05-27 - InnerHTML XSS Mitigations in Workout Logging
+**Vulnerability:** User-controlled strings (e.g., `activeWorkout.dayName`, `activeWorkout.planName`, `ex.name`, `ex.muscleGroup`, `ex.equipment`, `p.name`, and `day.name`) were unsafely injected directly into `innerHTML` strings in `src/pages/workout.js`.
+**Learning:** Found multiple instances where plan data and workout exercise info are interpolated without validation. If a user was tricked into importing a malicious plan JSON file, arbitrary scripts could execute. Since `escapeHTML` is already imported from `../utils/sanitize.js`, it can be directly applied.
+**Prevention:** Consistently apply `escapeHTML()` to all dynamic string variables before inserting them into `innerHTML` or `outerHTML`.
