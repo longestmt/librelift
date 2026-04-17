@@ -1,0 +1,3 @@
+## 2024-04-17 - Add 'for' attributes to form labels
+**Learning:** Screen reader users rely on programmatic connections between `<label>` and their associated `<input>` elements. Even though the labels are visually close to the inputs in the vanilla JS UI, they lacked the `for` attribute linking them to the input `id`. Without this, screen readers may not announce the field name when the user focuses on the input.
+**Action:** Always ensure that all form `<label>` elements explicitly use the `for` attribute referencing the `id` of the input/textarea/select element they describe, specifically crucial in dynamically generated vanilla JS UIs like LibreLift.
