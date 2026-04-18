@@ -174,7 +174,9 @@ export async function renderExercisesPage(container) {
     // FAB for adding custom exercise
     const fab = document.createElement('button');
     fab.className = 'fab';
-    fab.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+    fab.setAttribute('aria-label', 'Add Custom Exercise');
+    fab.setAttribute('title', 'Add Custom Exercise');
+    fab.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
     fab.addEventListener('click', () => showAddExerciseModal(exercises));
     container.appendChild(fab);
 }
@@ -184,33 +186,33 @@ function showAddExerciseModal(exercises) {
     body.innerHTML = `
     <div class="flex flex-col gap-4">
       <div class="input-group">
-        <label class="input-label">Name</label>
+        <label class="input-label" for="new-ex-name">Name</label>
         <input class="input" id="new-ex-name" placeholder="e.g. Zercher Squat" />
       </div>
       <div class="input-group">
-        <label class="input-label">Muscle Group</label>
+        <label class="input-label" for="new-ex-muscle">Muscle Group</label>
         <select class="input" id="new-ex-muscle">
           ${MUSCLE_GROUPS.map(mg => `<option value="${mg}">${mg}</option>`).join('')}
         </select>
       </div>
       <div class="input-group">
-        <label class="input-label">Equipment</label>
+        <label class="input-label" for="new-ex-equip">Equipment</label>
         <select class="input" id="new-ex-equip">
           ${EQUIPMENT.map(eq => `<option value="${eq}">${eq}</option>`).join('')}
         </select>
       </div>
       <div class="input-group">
-        <label class="input-label">Category</label>
+        <label class="input-label" for="new-ex-cat">Category</label>
         <select class="input" id="new-ex-cat">
           ${CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
         </select>
       </div>
       <div class="input-group">
-        <label class="input-label">Instructions (optional)</label>
+        <label class="input-label" for="new-ex-instructions">Instructions (optional)</label>
         <textarea class="input" id="new-ex-instructions" rows="3" placeholder="How to perform this exercise..."></textarea>
       </div>
       <div class="input-group">
-        <label class="input-label">Video URL (optional)</label>
+        <label class="input-label" for="new-ex-url">Video URL (optional)</label>
         <input class="input" id="new-ex-url" placeholder="https://youtube.com/..." />
       </div>
       <button class="btn btn-primary btn-full" id="save-exercise-btn">Save Exercise</button>

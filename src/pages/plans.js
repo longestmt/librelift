@@ -118,7 +118,9 @@ export async function renderPlansPage(container) {
   // FAB for new plan
   const fab = document.createElement('button');
   fab.className = 'fab';
-  fab.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+  fab.setAttribute('aria-label', 'Create New Plan');
+  fab.setAttribute('title', 'Create New Plan');
+  fab.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
   fab.addEventListener('click', () => showCreatePlanModal(exercises));
   container.appendChild(fab);
 
@@ -299,15 +301,15 @@ function showCreatePlanModal(exercises) {
   body.innerHTML = `
     <div class="flex flex-col gap-4">
       <div class="input-group">
-        <label class="input-label">Plan Name</label>
+        <label class="input-label" for="plan-name">Plan Name</label>
         <input class="input" id="plan-name" placeholder="e.g. My Custom Plan" />
       </div>
       <div class="input-group">
-        <label class="input-label">Description (optional)</label>
+        <label class="input-label" for="plan-desc">Description (optional)</label>
         <textarea class="input" id="plan-desc" rows="2" placeholder="What's this plan about?"></textarea>
       </div>
       <div class="input-group">
-        <label class="input-label">Schedule (optional)</label>
+        <label class="input-label" for="plan-schedule">Schedule (optional)</label>
         <input class="input" id="plan-schedule" placeholder="e.g. 3 days/week" />
       </div>
 
