@@ -118,7 +118,9 @@ export async function renderPlansPage(container) {
   // FAB for new plan
   const fab = document.createElement('button');
   fab.className = 'fab';
-  fab.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+  fab.setAttribute('aria-label', 'Create plan');
+  fab.title = 'Create plan';
+  fab.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
   fab.addEventListener('click', () => showCreatePlanModal(exercises));
   container.appendChild(fab);
 
