@@ -10,6 +10,7 @@ import { createLineChart } from '../components/charts.js';
 import { getExerciseHistory } from '../engine/progression.js';
 import { createRMCalculator } from '../components/rm-calculator.js';
 import { getSetting } from '../data/db.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 export async function renderExercisesPage(container) {
     const exercises = await getAll('exercises');
@@ -66,13 +67,13 @@ export async function renderExercisesPage(container) {
         }
 
         grid.innerHTML = filtered.map(ex => `
-      <div class="card card-clickable" data-exercise-id="${ex.id}" style="animation: slideUp 200ms var(--ease-out) both; animation-delay: ${Math.random() * 100}ms">
+      <div class="card card-clickable" data-exercise-id="${escapeHTML(String(ex.id || ''))}" style="animation: slideUp 200ms var(--ease-out) both; animation-delay: ${Math.random() * 100}ms">
         <div class="card-header">
           <div>
-            <div class="card-title">${ex.name}</div>
+            <div class="card-title">${escapeHTML(String(ex.name || ''))}</div>
             <div class="flex gap-2" style="margin-top:var(--sp-1)">
-              <span class="badge badge-accent">${ex.muscleGroup || 'Other'}</span>
-              <span class="badge badge-muted">${ex.equipment || ''}</span>
+              <span class="badge badge-accent">${escapeHTML(String(ex.muscleGroup || 'Other'))}</span>
+              <span class="badge badge-muted">${escapeHTML(String(ex.equipment || ''))}</span>
             </div>
           </div>
           <div style="color:var(--text-faint)">
@@ -117,20 +118,25 @@ export async function renderExercisesPage(container) {
         }));
 
         const body = openModal('', { title: ex.name });
+
+        const safeMediaUrl = (ex.mediaUrl && (ex.mediaUrl.startsWith('http://') || ex.mediaUrl.startsWith('https://')))
+            ? escapeHTML(String(ex.mediaUrl))
+            : null;
+
         body.innerHTML = `
       <div class="flex gap-2" style="margin-bottom:var(--sp-4)">
-        <span class="badge badge-accent">${ex.muscleGroup}</span>
-        <span class="badge badge-muted">${ex.equipment}</span>
-        <span class="badge badge-muted">${ex.category}</span>
+        <span class="badge badge-accent">${escapeHTML(String(ex.muscleGroup || ''))}</span>
+        <span class="badge badge-muted">${escapeHTML(String(ex.equipment || ''))}</span>
+        <span class="badge badge-muted">${escapeHTML(String(ex.category || ''))}</span>
       </div>
 
       <div style="margin-bottom:var(--sp-4)">
         <div class="text-sm text-secondary" style="margin-bottom:var(--sp-2)">Instructions</div>
-        <p class="text-sm" style="line-height:1.6">${ex.instructions || 'No instructions available.'}</p>
+        <p class="text-sm" style="line-height:1.6">${escapeHTML(String(ex.instructions || 'No instructions available.'))}</p>
       </div>
 
-      ${ex.mediaUrl ? `
-        <a href="${ex.mediaUrl}" target="_blank" rel="noopener" class="btn btn-secondary btn-full" style="margin-bottom:var(--sp-4)">
+      ${safeMediaUrl ? `
+        <a href="${safeMediaUrl}" target="_blank" rel="noopener" class="btn btn-secondary btn-full" style="margin-bottom:var(--sp-4)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>
