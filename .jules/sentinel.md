@@ -6,3 +6,8 @@
 **Vulnerability:** XSS (Cross-Site Scripting) risk from unescaped parameters passed to reusable UI components (`openModal`'s `title` option and `showToast`/`showPRToast` message inputs) being interpolated directly into `innerHTML`.
 **Learning:** Depending on callers to sanitize parameters before calling generic UI functions creates a high risk of developer oversight, which was the case for many invocations of these components across the codebase. Centralizing the `escapeHTML` check within the component itself completely mitigates this entire class of bugs and avoids double-escaping issues.
 **Prevention:** Sanitize inputs like `title`, `message`, and related text parameters directly inside utility components (e.g., modals, toasts, cards) using `escapeHTML` *before* inserting them into `innerHTML`.
+
+## 2024-05-18 - Prevent XSS and javascript: URI attacks in dynamically rendered UI
+**Vulnerability:** The application was vulnerable to Stored XSS and URI scheme attacks. User-provided data (`muscleGroup`, `equipment`, `category`, `instructions`) was rendered directly into the DOM via template literals in `innerHTML`. Additionally, `mediaUrl` was injected into an anchor tag's `href` attribute without sanitization or protocol validation, enabling `javascript:` payload execution.
+**Learning:** Even internal, local-first IndexedDB storage must be treated as an untrusted data source when interpolating values into HTML. Using `innerHTML` inherently risks XSS.
+**Prevention:** Wrap all interpolated text values with `escapeHTML(String(value || ''))` prior to injection. For user-provided URLs in `href` attributes, always validate that the string strictly begins with an allowed protocol (e.g., `http://` or `https://`) and escape the URL.
