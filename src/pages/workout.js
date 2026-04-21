@@ -178,7 +178,7 @@ async function renderActiveWorkout(container, unit) {
       </div>
     </div>
     <div id="workout-exercises" class="flex flex-col gap-4"></div>
-    <div style="margin-top:var(--sp-4)"><div class="input-group"><label class="input-label">Gym Notes</label>
+    <div style="margin-top:var(--sp-4)"><div class="input-group"><label class="input-label" for="workout-notes">Gym Notes</label>
       <textarea class="input" id="workout-notes" rows="2" placeholder="How's the session going?">${escapeHTML(activeWorkout.notes)}</textarea></div></div>
     <div style="margin-top:var(--sp-4)"><button class="btn btn-secondary btn-full" id="add-exercise-btn">+ Add Exercise</button></div>`;
 
