@@ -34,11 +34,11 @@ export async function createRMCalculator(initialWeight = 0, initialReps = 0) {
     inputsDiv.style.marginBottom = 'var(--sp-4)';
     inputsDiv.innerHTML = `
         <div class="input-group" style="flex:1">
-            <label class="input-label">Weight (${unit})</label>
+            <label class="input-label" for="rm-weight">Weight (${unit})</label>
             <input class="input" type="number" id="rm-weight" value="${weight || ''}" placeholder="e.g. 225" inputmode="decimal" />
         </div>
         <div class="input-group" style="flex:1">
-            <label class="input-label">Reps</label>
+            <label class="input-label" for="rm-reps">Reps</label>
             <input class="input" type="number" id="rm-reps" value="${reps || ''}" placeholder="e.g. 5" inputmode="numeric" />
         </div>`;
 
