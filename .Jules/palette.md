@@ -1,3 +1,5 @@
-## 2025-02-14 - Visual Grid Layouts Hiding Context from Screen Readers
-**Learning:** In a visual grid layout (like a workout log) where column headers (Weight, Reps, RPE) exist separately from the rows, screen readers lose context. Inputs appear unlabelled, making it difficult for users to know what data they are entering.
-**Action:** Add explicit `aria-label` attributes to each input that combine the column meaning with the row context (e.g., "Weight for set 1").
+## Palette Journal
+
+## 2024-04-26 - Add ARIA Labels to Icon-Only Template Strings
+**Learning:** In Vanilla JS applications generating UI via template strings (`innerHTML`), icon-only buttons often miss `aria-label`s, relying solely on `title`. Additionally, inline SVG icons within these buttons are incorrectly interpreted by screen readers if `aria-hidden="true"` is omitted.
+**Action:** When adding or reviewing icon-only buttons created with template strings, ensure they explicitly include both an `aria-label` attribute on the `<button>` and an `aria-hidden="true"` attribute on the inner `<svg>` element to ensure full screen reader accessibility.
