@@ -7,3 +7,12 @@ export function escapeHTML(str) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
+export function sanitizeUrl(url) {
+  if (typeof url !== 'string') return '#';
+  const cleanUrl = url.trim();
+  if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+    return escapeHTML(cleanUrl);
+  }
+  return '#';
+}
