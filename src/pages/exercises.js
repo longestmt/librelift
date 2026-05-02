@@ -10,6 +10,7 @@ import { createLineChart } from '../components/charts.js';
 import { getExerciseHistory } from '../engine/progression.js';
 import { createRMCalculator } from '../components/rm-calculator.js';
 import { getSetting } from '../data/db.js';
+import { sanitizeUrl } from '../utils/sanitize.js';
 
 export async function renderExercisesPage(container) {
     const exercises = await getAll('exercises');
@@ -130,7 +131,7 @@ export async function renderExercisesPage(container) {
       </div>
 
       ${ex.mediaUrl ? `
-        <a href="${ex.mediaUrl}" target="_blank" rel="noopener" class="btn btn-secondary btn-full" style="margin-bottom:var(--sp-4)">
+        <a href="${sanitizeUrl(ex.mediaUrl)}" target="_blank" rel="noopener" class="btn btn-secondary btn-full" style="margin-bottom:var(--sp-4)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>
