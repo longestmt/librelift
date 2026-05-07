@@ -282,7 +282,7 @@ function renderExerciseCard(ex, ei, unit) {
 
   return `<div class="card" data-ei="${ei}" style="${ex.supersetGroup ? 'border:none;box-shadow:none;background:transparent;padding:0' : ''}">
       <div class="card-header" style="cursor:pointer" data-toggle="${ei}">
-        <div><div class="card-title">${ex.exerciseName}</div><div class="flex gap-2" style="margin-top:2px">${reasonBadge}<span class="prev-hint">${prevText}</span></div></div>
+        <div><div class="card-title">${escapeHTML(ex.exerciseName)}</div><div class="flex gap-2" style="margin-top:2px">${reasonBadge}<span class="prev-hint">${prevText}</span></div></div>
         <div class="flex items-center gap-1">
           <button class="btn btn-ghost btn-icon" data-show-history="${ei}" title="History" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
           <button class="btn btn-ghost btn-icon" data-swap-ex="${ei}" title="Swap exercise" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></button>
@@ -731,10 +731,10 @@ async function showSwapPicker(ei, exContainer, unit) {
     <div id="swap-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">
       ${alternatives.map(ex => `
         <div class="list-item" style="flex-direction:column;align-items:stretch;gap:var(--sp-2);padding:var(--sp-3)">
-          <div><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.equipment}</div></div>
+          <div><div class="text-sm font-medium">${escapeHTML(ex.name)}</div><div class="text-xs text-muted">${escapeHTML(ex.equipment)}</div></div>
           <div class="flex gap-2">
-            <button class="btn btn-secondary text-xs" data-swap-id="${ex.id}" data-swap-name="${ex.name}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
-            ${activeWorkout.planId ? `<button class="btn btn-primary text-xs" data-swap-id="${ex.id}" data-swap-name="${ex.name}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
+            <button class="btn btn-secondary text-xs" data-swap-id="${ex.id}" data-swap-name="${escapeHTML(ex.name)}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
+            ${activeWorkout.planId ? `<button class="btn btn-primary text-xs" data-swap-id="${ex.id}" data-swap-name="${escapeHTML(ex.name)}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
           </div>
         </div>
       `).join('')}
