@@ -348,7 +348,7 @@ function showCreatePlanModal(exercises) {
                 <input class="input-inline" aria-label="Sets for ${safeExName}" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:40px" />
                 <span class="text-muted">×</span>
                 <input class="input-inline" aria-label="Reps for ${safeExName}" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:40px" />
-                <button class="btn btn-ghost btn-icon" aria-label="Remove ${safeExName}" data-remove-ex="${di}-${ei}" style="width:28px;height:28px">×</button>
+                <button class="btn btn-ghost btn-icon" aria-label="Remove ${safeExName}" data-remove-ex="${di}-${ei}" style="width:28px;height:28px"><span aria-hidden="true">×</span></button>
               </div>
             `;
     }).join('')}
