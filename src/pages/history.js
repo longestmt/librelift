@@ -88,10 +88,10 @@ function renderWorkoutsList(container, workouts, allSets) {
     return `<div class="card card-clickable" data-workout-id="${w.id}">
       <div class="card-header">
         <div>
-          <div class="card-title">${w.dayName || 'Workout'}</div>
+          <div class="card-title">${escapeHTML(String(w.dayName || 'Workout'))}</div>
           <div class="flex gap-2" style="margin-top:2px">
             <span class="text-xs text-muted">${w.date || ''}</span>
-            ${w.planName ? `<span class="badge badge-muted">${w.planName}</span>` : ''}
+            ${w.planName ? `<span class="badge badge-muted">${escapeHTML(String(w.planName || ''))}</span>` : ''}
           </div>
         </div>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
@@ -207,7 +207,7 @@ function renderExerciseProgress(container, exercises, allSets) {
       return { value: best.weight, label: '' };
     });
 
-    return `<div class="card"><div class="card-title" style="margin-bottom:var(--sp-2)">${ex.name}</div><div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">${workoutMap.size} sessions • Best: ${Math.max(...exSets.map(s => s.weight))} ${''}</div><div id="chart-${ex.id}"></div></div>`;
+    return `<div class="card"><div class="card-title" style="margin-bottom:var(--sp-2)">${escapeHTML(String(ex.name || ''))}</div><div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">${workoutMap.size} sessions • Best: ${Math.max(...exSets.map(s => s.weight))} ${''}</div><div id="chart-${ex.id}"></div></div>`;
   }).join('')}</div>`;
 
   // Render charts
