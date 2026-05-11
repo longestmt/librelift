@@ -6,3 +6,8 @@
 **Vulnerability:** XSS (Cross-Site Scripting) risk from unescaped parameters passed to reusable UI components (`openModal`'s `title` option and `showToast`/`showPRToast` message inputs) being interpolated directly into `innerHTML`.
 **Learning:** Depending on callers to sanitize parameters before calling generic UI functions creates a high risk of developer oversight, which was the case for many invocations of these components across the codebase. Centralizing the `escapeHTML` check within the component itself completely mitigates this entire class of bugs and avoids double-escaping issues.
 **Prevention:** Sanitize inputs like `title`, `message`, and related text parameters directly inside utility components (e.g., modals, toasts, cards) using `escapeHTML` *before* inserting them into `innerHTML`.
+
+## 2024-05-24 - XSS in User-Generated HTML String Templates (History)
+**Vulnerability:** Unescaped interpolation of user data (`w.dayName`, `w.planName`, `w.date`, `name`, `ex.name`, `ex.id`) directly into `innerHTML` templates in `src/pages/history.js`.
+**Learning:** Even internal views rendering past logged data are vulnerable if the data originates from user input without escaping. It's critical to apply `escapeHTML(String(val || ''))` globally to all dynamically inserted values in UI templates.
+**Prevention:** Always wrap user-controlled variables in `escapeHTML()` before string interpolation and use attribute selectors (e.g., `[id="..."]`) instead of hash selectors when IDs contain special characters.
