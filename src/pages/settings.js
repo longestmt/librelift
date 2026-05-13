@@ -4,6 +4,7 @@
 
 import { getSetting, setSetting } from '../data/db.js';
 import { exportData, importData } from '../data/io.js';
+import { sanitizeUrl } from "../utils/sanitize.js";
 import { showToast } from '../components/toast.js';
 import { STANDARD_PLATES_LB, STANDARD_PLATES_KG } from '../engine/progression.js';
 import { getGistToken, setGistToken, validateToken, pushBackup, pullBackup, restoreFromGist, getBackupInfo, disconnectGist } from '../data/gist-backup.js';
@@ -259,7 +260,7 @@ export async function renderSettingsPage(container) {
               <div class="text-sm font-medium text-success">● Connected</div>
               <div class="text-xs text-muted">Last backup: ${lastBackup}</div>
             </div>
-            ${info ? `<a href="${info.url}" target="_blank" class="text-xs" style="color:var(--accent)">View Gist ↗</a>` : ''}
+            ${info ? `<a href="${sanitizeUrl(info.url)}" target="_blank" class="text-xs" style="color:var(--accent)">View Gist ↗</a>` : ''}
           </div>
           <div class="flex gap-2">
             <button class="btn btn-primary btn-sm" id="gist-push" style="flex:1">Push Backup</button>

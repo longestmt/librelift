@@ -6,6 +6,7 @@ import { getAll, put, getByIndex } from '../data/db.js';
 import { MUSCLE_GROUPS, EQUIPMENT, CATEGORIES } from '../data/exercises-seed.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
+import { escapeHTML, sanitizeUrl } from "../utils/sanitize.js";
 import { createLineChart } from '../components/charts.js';
 import { getExerciseHistory } from '../engine/progression.js';
 import { createRMCalculator } from '../components/rm-calculator.js';
@@ -119,18 +120,18 @@ export async function renderExercisesPage(container) {
         const body = openModal('', { title: ex.name });
         body.innerHTML = `
       <div class="flex gap-2" style="margin-bottom:var(--sp-4)">
-        <span class="badge badge-accent">${ex.muscleGroup}</span>
-        <span class="badge badge-muted">${ex.equipment}</span>
-        <span class="badge badge-muted">${ex.category}</span>
+        <span class="badge badge-accent">${escapeHTML(ex.muscleGroup)}</span>
+        <span class="badge badge-muted">${escapeHTML(ex.equipment)}</span>
+        <span class="badge badge-muted">${escapeHTML(ex.category)}</span>
       </div>
 
       <div style="margin-bottom:var(--sp-4)">
         <div class="text-sm text-secondary" style="margin-bottom:var(--sp-2)">Instructions</div>
-        <p class="text-sm" style="line-height:1.6">${ex.instructions || 'No instructions available.'}</p>
+        <p class="text-sm" style="line-height:1.6">${escapeHTML(ex.instructions || '') || 'No instructions available.'}</p>
       </div>
 
       ${ex.mediaUrl ? `
-        <a href="${ex.mediaUrl}" target="_blank" rel="noopener" class="btn btn-secondary btn-full" style="margin-bottom:var(--sp-4)">
+        <a href="${sanitizeUrl(ex.mediaUrl)}" target="_blank" rel="noopener" class="btn btn-secondary btn-full" style="margin-bottom:var(--sp-4)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>
