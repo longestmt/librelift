@@ -6,3 +6,8 @@
 **Vulnerability:** XSS (Cross-Site Scripting) risk from unescaped parameters passed to reusable UI components (`openModal`'s `title` option and `showToast`/`showPRToast` message inputs) being interpolated directly into `innerHTML`.
 **Learning:** Depending on callers to sanitize parameters before calling generic UI functions creates a high risk of developer oversight, which was the case for many invocations of these components across the codebase. Centralizing the `escapeHTML` check within the component itself completely mitigates this entire class of bugs and avoids double-escaping issues.
 **Prevention:** Sanitize inputs like `title`, `message`, and related text parameters directly inside utility components (e.g., modals, toasts, cards) using `escapeHTML` *before* inserting them into `innerHTML`.
+
+## 2024-06-01 - javascript: URI XSS in dynamic links
+**Vulnerability:** Found High severity Cross-Site Scripting (XSS) vulnerability via `javascript:` URIs in dynamically interpolated `href` attributes in `src/pages/exercises.js` and `src/pages/settings.js`.
+**Learning:** Even when interpolating external URLs into `href` attributes inside UI elements, an attacker could supply a `javascript:` payload. Standard HTML escaping does not mitigate this, as the attribute value is executed in the browser context upon click.
+**Prevention:** When injecting dynamic URLs into `href` attributes, always validate and enforce safe protocols (`http://` or `https://`) and explicitly escape the result using a central utility like `sanitizeUrl()`.
