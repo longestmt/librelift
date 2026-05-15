@@ -85,13 +85,13 @@ function renderWorkoutsList(container, workouts, allSets) {
     const dur = w.durationSec ? formatDuration(w.durationSec) : '';
     const completed = wSets.filter(s => s.completed).length;
 
-    return `<div class="card card-clickable" data-workout-id="${w.id}">
+    return `<div class="card card-clickable" data-workout-id="${escapeHTML(String(w.id || ''))}">
       <div class="card-header">
         <div>
-          <div class="card-title">${w.dayName || 'Workout'}</div>
+          <div class="card-title">${escapeHTML(String(w.dayName || 'Workout'))}</div>
           <div class="flex gap-2" style="margin-top:2px">
-            <span class="text-xs text-muted">${w.date || ''}</span>
-            ${w.planName ? `<span class="badge badge-muted">${w.planName}</span>` : ''}
+            <span class="text-xs text-muted">${escapeHTML(String(w.date || ''))}</span>
+            ${w.planName ? `<span class="badge badge-muted">${escapeHTML(String(w.planName))}</span>` : ''}
           </div>
         </div>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
@@ -130,12 +130,12 @@ function showWorkoutDetail(workout, sets, onDelete) {
   const durMin = workout.durationSec ? Math.floor(workout.durationSec / 60) : null;
   const durDisplay = durMin != null ? formatDuration(workout.durationSec) : '';
   body.innerHTML = `
-    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${workout.date}${workout.planName ? ` • ${workout.planName}` : ''}${durDisplay ? ` • <span id="dur-display" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Tap to edit">${durDisplay}</span>` : ''}</div>
+    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${escapeHTML(String(workout.date || ''))}${workout.planName ? ` • ${escapeHTML(String(workout.planName))}` : ''}${durDisplay ? ` • <span id="dur-display" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Tap to edit">${durDisplay}</span>` : ''}</div>
     ${workout.notes ? `<div class="card" style="margin-bottom:var(--sp-3);padding:var(--sp-3)"><div class="text-xs text-muted">Notes</div><div class="text-sm">${escapeHTML(workout.notes)}</div></div>` : ''}
     <div class="flex flex-col gap-4">
       ${[...exerciseMap.entries()].map(([name, exSets]) => `
         <div>
-          <div class="font-semibold text-sm" style="margin-bottom:var(--sp-1);color:var(--accent)">${name}</div>
+          <div class="font-semibold text-sm" style="margin-bottom:var(--sp-1);color:var(--accent)">${escapeHTML(String(name || ''))}</div>
           <div class="flex flex-col gap-1">
             ${exSets.sort((a, b) => a.setNumber - b.setNumber).map(s => `
               <div class="flex items-center gap-3 text-sm">
@@ -207,12 +207,12 @@ function renderExerciseProgress(container, exercises, allSets) {
       return { value: best.weight, label: '' };
     });
 
-    return `<div class="card"><div class="card-title" style="margin-bottom:var(--sp-2)">${ex.name}</div><div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">${workoutMap.size} sessions • Best: ${Math.max(...exSets.map(s => s.weight))} ${''}</div><div id="chart-${ex.id}"></div></div>`;
+    return `<div class="card"><div class="card-title" style="margin-bottom:var(--sp-2)">${escapeHTML(String(ex.name || ''))}</div><div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">${workoutMap.size} sessions • Best: ${Math.max(...exSets.map(s => s.weight))} ${''}</div><div id="chart-${escapeHTML(String(ex.id || ''))}"></div></div>`;
   }).join('')}</div>`;
 
   // Render charts
   exercisesWithSets.forEach(ex => {
-    const el = container.querySelector(`#chart-${ex.id}`);
+    const el = container.querySelector(`[id='chart-${escapeHTML(String(ex.id || ''))}']`);
     if (!el) return;
     const exSets = allSets.filter(s => s.exerciseId === ex.id && s.completed);
     const workoutMap = new Map();
