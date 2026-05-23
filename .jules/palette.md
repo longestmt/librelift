@@ -1,0 +1,3 @@
+## 2024-05-23 - Context-Aware ARIA Labels for Icon Buttons
+**Learning:** Icon-only buttons mapped to dynamically rendered list items (like exercises in a workout) require context-aware `aria-label` attributes (e.g., "History for Bench Press") rather than static labels (e.g., "History"), so screen reader users can distinguish between identical actions across different items.
+**Action:** Always interpolate the dynamic context variable (safely escaped) into the `aria-label` when rendering repeated icon button components, and remember to hide the inner decorative `<svg>` using `aria-hidden="true"`.
