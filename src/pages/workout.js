@@ -169,8 +169,8 @@ function startEmptyWorkout() {
 async function renderActiveWorkout(container, unit) {
   container.innerHTML = `
     <div class="flex items-center justify-between" style="margin-bottom:var(--sp-4)">
-      <div><h1 class="page-title" style="font-size:var(--text-xl)">${activeWorkout.dayName || 'Workout'}</h1>
-      ${activeWorkout.planName ? `<div class="text-xs text-muted">${activeWorkout.planName}</div>` : ''}</div>
+      <div><h1 class="page-title" style="font-size:var(--text-xl)">${activeWorkout.dayName ? escapeHTML(activeWorkout.dayName) : 'Workout'}</h1>
+      ${activeWorkout.planName ? `<div class="text-xs text-muted">${escapeHTML(activeWorkout.planName)}</div>` : ''}</div>
       <div class="flex items-center gap-2">
         <button id="workout-clock" class="btn btn-ghost font-mono text-sm text-accent" style="min-width:50px;padding:var(--sp-2) var(--sp-3)" title="Tap to pause/resume">0:00</button>
         <button class="btn btn-ghost text-sm" id="cancel-workout-btn" style="padding:var(--sp-2) var(--sp-3);color:var(--text-muted)">Cancel</button>
@@ -617,7 +617,7 @@ async function commitFinish(container, unit, dur) {
     const bwEntries = await getAll('bodyWeight');
     const lastBW = bwEntries.sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
 
-    container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${activeWorkout.dayName}</p></div>
+    container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${escapeHTML(activeWorkout.dayName)}</p></div>
         <div class="card" style="margin-top:var(--sp-6)"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);text-align:center"><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${durStr}</div><div class="text-xs text-muted">Duration</div></div><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${vol.toLocaleString()}</div><div class="text-xs text-muted">Volume</div></div><div><div class="font-bold text-success" style="font-size:var(--text-xl)">${done}/${allSets.length}</div><div class="text-xs text-muted">Sets</div></div></div></div>
         <div class="card" style="margin-top:var(--sp-3);padding:var(--sp-3)">
           <div class="flex items-center gap-3">
