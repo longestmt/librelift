@@ -696,7 +696,7 @@ function cleanupWorkout() {
 
 async function showExercisePicker(exercises, exContainer, unit) {
   const body = openModal('', { title: 'Add Exercise' });
-  body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="add-ex-search" placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button class="list-item" data-id="${ex.id}" data-name="${ex.name}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.muscleGroup} • ${ex.equipment}</div></span></button>`).join('')}</div>`;
+  body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="add-ex-search" placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button class="list-item" data-id="${ex.id}" data-name="${escapeHTML(ex.name)}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${escapeHTML(ex.name)}</div><div class="text-xs text-muted">${escapeHTML(ex.muscleGroup)} • ${escapeHTML(ex.equipment)}</div></span></button>`).join('')}</div>`;
 
   body.querySelector('#add-ex-search').addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase();
@@ -726,15 +726,15 @@ async function showSwapPicker(ei, exContainer, unit) {
 
   const body = openModal('', { title: `Swap ${currentEx.exerciseName}` });
   body.innerHTML = `
-    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${muscleGroup} exercises • ${alternatives.length} alternatives</div>
+    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${escapeHTML(muscleGroup)} exercises • ${alternatives.length} alternatives</div>
     <div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="swap-search" placeholder="Search..."/></div>
     <div id="swap-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">
       ${alternatives.map(ex => `
         <div class="list-item" style="flex-direction:column;align-items:stretch;gap:var(--sp-2);padding:var(--sp-3)">
-          <div><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.equipment}</div></div>
+          <div><div class="text-sm font-medium">${escapeHTML(ex.name)}</div><div class="text-xs text-muted">${escapeHTML(ex.equipment)}</div></div>
           <div class="flex gap-2">
-            <button class="btn btn-secondary text-xs" data-swap-id="${ex.id}" data-swap-name="${ex.name}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
-            ${activeWorkout.planId ? `<button class="btn btn-primary text-xs" data-swap-id="${ex.id}" data-swap-name="${ex.name}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
+            <button class="btn btn-secondary text-xs" data-swap-id="${ex.id}" data-swap-name="${escapeHTML(ex.name)}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
+            ${activeWorkout.planId ? `<button class="btn btn-primary text-xs" data-swap-id="${ex.id}" data-swap-name="${escapeHTML(ex.name)}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
           </div>
         </div>
       `).join('')}

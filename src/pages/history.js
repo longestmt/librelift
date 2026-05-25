@@ -130,12 +130,12 @@ function showWorkoutDetail(workout, sets, onDelete) {
   const durMin = workout.durationSec ? Math.floor(workout.durationSec / 60) : null;
   const durDisplay = durMin != null ? formatDuration(workout.durationSec) : '';
   body.innerHTML = `
-    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${workout.date}${workout.planName ? ` • ${workout.planName}` : ''}${durDisplay ? ` • <span id="dur-display" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Tap to edit">${durDisplay}</span>` : ''}</div>
+    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${workout.date}${workout.planName ? ` • ${escapeHTML(workout.planName)}` : ''}${durDisplay ? ` • <span id="dur-display" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Tap to edit">${durDisplay}</span>` : ''}</div>
     ${workout.notes ? `<div class="card" style="margin-bottom:var(--sp-3);padding:var(--sp-3)"><div class="text-xs text-muted">Notes</div><div class="text-sm">${escapeHTML(workout.notes)}</div></div>` : ''}
     <div class="flex flex-col gap-4">
       ${[...exerciseMap.entries()].map(([name, exSets]) => `
         <div>
-          <div class="font-semibold text-sm" style="margin-bottom:var(--sp-1);color:var(--accent)">${name}</div>
+          <div class="font-semibold text-sm" style="margin-bottom:var(--sp-1);color:var(--accent)">${escapeHTML(name)}</div>
           <div class="flex flex-col gap-1">
             ${exSets.sort((a, b) => a.setNumber - b.setNumber).map(s => `
               <div class="flex items-center gap-3 text-sm">
@@ -207,7 +207,7 @@ function renderExerciseProgress(container, exercises, allSets) {
       return { value: best.weight, label: '' };
     });
 
-    return `<div class="card"><div class="card-title" style="margin-bottom:var(--sp-2)">${ex.name}</div><div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">${workoutMap.size} sessions • Best: ${Math.max(...exSets.map(s => s.weight))} ${''}</div><div id="chart-${ex.id}"></div></div>`;
+    return `<div class="card"><div class="card-title" style="margin-bottom:var(--sp-2)">${escapeHTML(ex.name)}</div><div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">${workoutMap.size} sessions • Best: ${Math.max(...exSets.map(s => s.weight))} ${''}</div><div id="chart-${ex.id}"></div></div>`;
   }).join('')}</div>`;
 
   // Render charts

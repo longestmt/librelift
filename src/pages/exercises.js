@@ -119,9 +119,9 @@ export async function renderExercisesPage(container) {
         const body = openModal('', { title: ex.name });
         body.innerHTML = `
       <div class="flex gap-2" style="margin-bottom:var(--sp-4)">
-        <span class="badge badge-accent">${ex.muscleGroup}</span>
-        <span class="badge badge-muted">${ex.equipment}</span>
-        <span class="badge badge-muted">${ex.category}</span>
+        <span class="badge badge-accent">${escapeHTML(ex.muscleGroup)}</span>
+        <span class="badge badge-muted">${escapeHTML(ex.equipment)}</span>
+        <span class="badge badge-muted">${escapeHTML(ex.category)}</span>
       </div>
 
       <div style="margin-bottom:var(--sp-4)">
