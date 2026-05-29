@@ -169,8 +169,8 @@ function startEmptyWorkout() {
 async function renderActiveWorkout(container, unit) {
   container.innerHTML = `
     <div class="flex items-center justify-between" style="margin-bottom:var(--sp-4)">
-      <div><h1 class="page-title" style="font-size:var(--text-xl)">${activeWorkout.dayName || 'Workout'}</h1>
-      ${activeWorkout.planName ? `<div class="text-xs text-muted">${activeWorkout.planName}</div>` : ''}</div>
+      <div><h1 class="page-title" style="font-size:var(--text-xl)">${activeWorkout.dayName ? escapeHTML(activeWorkout.dayName) : 'Workout'}</h1>
+      ${activeWorkout.planName ? `<div class="text-xs text-muted">${escapeHTML(activeWorkout.planName)}</div>` : ''}</div>
       <div class="flex items-center gap-2">
         <button id="workout-clock" class="btn btn-ghost font-mono text-sm text-accent" style="min-width:50px;padding:var(--sp-2) var(--sp-3)" title="Tap to pause/resume">0:00</button>
         <button class="btn btn-ghost text-sm" id="cancel-workout-btn" style="padding:var(--sp-2) var(--sp-3);color:var(--text-muted)">Cancel</button>
@@ -282,7 +282,7 @@ function renderExerciseCard(ex, ei, unit) {
 
   return `<div class="card" data-ei="${ei}" style="${ex.supersetGroup ? 'border:none;box-shadow:none;background:transparent;padding:0' : ''}">
       <div class="card-header" style="cursor:pointer" data-toggle="${ei}">
-        <div><div class="card-title">${ex.exerciseName}</div><div class="flex gap-2" style="margin-top:2px">${reasonBadge}<span class="prev-hint">${prevText}</span></div></div>
+        <div><div class="card-title">${escapeHTML(ex.exerciseName)}</div><div class="flex gap-2" style="margin-top:2px">${reasonBadge}<span class="prev-hint">${prevText}</span></div></div>
         <div class="flex items-center gap-1">
           <button class="btn btn-ghost btn-icon" data-show-history="${ei}" title="History" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
           <button class="btn btn-ghost btn-icon" data-swap-ex="${ei}" title="Swap exercise" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></button>
@@ -324,7 +324,7 @@ function renderWorkoutExercises(container, unit) {
         groupExercises.push({ ex: exercises[i], ei: i });
         i++;
       }
-      const names = groupExercises.map(g => g.ex.exerciseName).join(' + ');
+      const names = groupExercises.map(g => escapeHTML(g.ex.exerciseName)).join(' + ');
       const label = groupExercises.length > 2 ? 'Circuit' : 'Superset';
       html += `<div class="superset-wrapper">
         <div class="superset-header">
@@ -394,7 +394,7 @@ function setupWorkoutEvents(container, unit) {
       const w = lastCompleted?.weight || ex.sets[0]?.weight || 0;
       const r = lastCompleted?.reps || ex.sets[0]?.reps || 0;
       const el = await createRMCalculator(w, r);
-      const body = openModal('', { title: `1RM — ${ex.exerciseName}` });
+      const body = openModal('', { title: `1RM — ${escapeHTML(ex.exerciseName)}` });
       body.innerHTML = '';
       body.appendChild(el);
       return;
@@ -513,7 +513,7 @@ function setupWorkoutEvents(container, unit) {
     if (noteBtn) {
       const ei = parseInt(noteBtn.dataset.exNote);
       const ex = activeWorkout.exercises[ei];
-      const body = openModal('', { title: `Note — ${ex.exerciseName}` });
+      const body = openModal('', { title: `Note — ${escapeHTML(ex.exerciseName)}` });
       body.innerHTML = `<textarea class="input" id="ex-note-input" rows="3" placeholder="How does this feel? Any cues?">${escapeHTML(ex.notes) || ''}</textarea>
               <button class="btn btn-primary btn-full" id="save-note-btn" style="margin-top:var(--sp-3)">Save</button>`;
       body.querySelector('#save-note-btn').addEventListener('click', () => {
@@ -696,7 +696,7 @@ function cleanupWorkout() {
 
 async function showExercisePicker(exercises, exContainer, unit) {
   const body = openModal('', { title: 'Add Exercise' });
-  body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="add-ex-search" placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button class="list-item" data-id="${ex.id}" data-name="${ex.name}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.muscleGroup} • ${ex.equipment}</div></span></button>`).join('')}</div>`;
+  body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="add-ex-search" placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button class="list-item" data-id="${ex.id}" data-name="${escapeHTML(ex.name)}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${escapeHTML(ex.name)}</div><div class="text-xs text-muted">${escapeHTML(ex.muscleGroup)} • ${escapeHTML(ex.equipment)}</div></span></button>`).join('')}</div>`;
 
   body.querySelector('#add-ex-search').addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase();
@@ -724,17 +724,17 @@ async function showSwapPicker(ei, exContainer, unit) {
   // Filter to same muscle group, exclude current exercise
   const alternatives = allExercises.filter(e => e.muscleGroup === muscleGroup && e.id !== currentEx.exerciseId);
 
-  const body = openModal('', { title: `Swap ${currentEx.exerciseName}` });
+  const body = openModal('', { title: `Swap ${escapeHTML(currentEx.exerciseName)}` });
   body.innerHTML = `
-    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${muscleGroup} exercises • ${alternatives.length} alternatives</div>
+    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${escapeHTML(muscleGroup)} exercises • ${alternatives.length} alternatives</div>
     <div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="swap-search" placeholder="Search..."/></div>
     <div id="swap-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">
       ${alternatives.map(ex => `
         <div class="list-item" style="flex-direction:column;align-items:stretch;gap:var(--sp-2);padding:var(--sp-3)">
-          <div><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.equipment}</div></div>
+          <div><div class="text-sm font-medium">${escapeHTML(ex.name)}</div><div class="text-xs text-muted">${escapeHTML(ex.equipment)}</div></div>
           <div class="flex gap-2">
-            <button class="btn btn-secondary text-xs" data-swap-id="${ex.id}" data-swap-name="${ex.name}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
-            ${activeWorkout.planId ? `<button class="btn btn-primary text-xs" data-swap-id="${ex.id}" data-swap-name="${ex.name}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
+            <button class="btn btn-secondary text-xs" data-swap-id="${ex.id}" data-swap-name="${escapeHTML(ex.name)}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
+            ${activeWorkout.planId ? `<button class="btn btn-primary text-xs" data-swap-id="${ex.id}" data-swap-name="${escapeHTML(ex.name)}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
           </div>
         </div>
       `).join('')}
@@ -796,7 +796,7 @@ async function showExerciseHistoryModal(ei, unit) {
   if (!ex || !ex.exerciseId) return;
 
   const history = await getExerciseHistory(ex.exerciseId);
-  const body = openModal('', { title: `${ex.exerciseName} History` });
+  const body = openModal('', { title: `${escapeHTML(ex.exerciseName)} History` });
 
   if (!history.length) {
     body.innerHTML = '<div class="text-sm text-muted" style="text-align:center;padding:var(--sp-4)">No recorded history yet.</div>';
