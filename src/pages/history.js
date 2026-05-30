@@ -88,10 +88,10 @@ function renderWorkoutsList(container, workouts, allSets) {
     return `<div class="card card-clickable" data-workout-id="${w.id}">
       <div class="card-header">
         <div>
-          <div class="card-title">${w.dayName || 'Workout'}</div>
+          <div class="card-title">${w.dayName ? escapeHTML(w.dayName) : 'Workout'}</div>
           <div class="flex gap-2" style="margin-top:2px">
             <span class="text-xs text-muted">${w.date || ''}</span>
-            ${w.planName ? `<span class="badge badge-muted">${w.planName}</span>` : ''}
+            ${w.planName ? `<span class="badge badge-muted">${escapeHTML(w.planName)}</span>` : ''}
           </div>
         </div>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
@@ -130,7 +130,7 @@ function showWorkoutDetail(workout, sets, onDelete) {
   const durMin = workout.durationSec ? Math.floor(workout.durationSec / 60) : null;
   const durDisplay = durMin != null ? formatDuration(workout.durationSec) : '';
   body.innerHTML = `
-    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${workout.date}${workout.planName ? ` • ${workout.planName}` : ''}${durDisplay ? ` • <span id="dur-display" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Tap to edit">${durDisplay}</span>` : ''}</div>
+    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${workout.date}${workout.planName ? ` • ${escapeHTML(workout.planName)}` : ''}${durDisplay ? ` • <span id="dur-display" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Tap to edit">${durDisplay}</span>` : ''}</div>
     ${workout.notes ? `<div class="card" style="margin-bottom:var(--sp-3);padding:var(--sp-3)"><div class="text-xs text-muted">Notes</div><div class="text-sm">${escapeHTML(workout.notes)}</div></div>` : ''}
     <div class="flex flex-col gap-4">
       ${[...exerciseMap.entries()].map(([name, exSets]) => `
