@@ -6,6 +6,7 @@
 import { getAll, getSetting } from '../data/db.js';
 import { createLineChart } from '../components/charts.js';
 import { formatDuration } from '../utils/format.js';
+import { escapeHTML } from "../utils/sanitize.js";
 
 export async function renderAnalyticsPage(container) {
   const workouts = await getAll('workouts');
@@ -103,7 +104,7 @@ export async function renderAnalyticsPage(container) {
     const sorted = bwEntries.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const latest = sorted[sorted.length - 1];
     const chartData = sorted.map(e => ({ label: (e.date || '').slice(5), value: e.value }));
-    bwArea.innerHTML = `<div class="flex items-center justify-between" style="margin-bottom:var(--sp-2)"><span class="font-bold text-accent" style="font-size:var(--text-lg)">${latest.value} ${latest.unit || unit}</span><span class="text-xs text-muted">${sorted.length} entries</span></div>`;
+    bwArea.innerHTML = `<div class="flex items-center justify-between" style="margin-bottom:var(--sp-2)"><span class="font-bold text-accent" style="font-size:var(--text-lg)">${escapeHTML(String(latest.value))} ${escapeHTML(latest.unit || unit)}</span><span class="text-xs text-muted">${sorted.length} entries</span></div>`;
     const width = Math.min(bwArea.offsetWidth || 300, 500);
     const chart = createLineChart(chartData, { width, height: 140, label: `Weight (${unit})` });
     bwArea.appendChild(chart);

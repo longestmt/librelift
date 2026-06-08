@@ -1,3 +1,4 @@
+import { escapeHTML } from "../utils/sanitize.js";
 /**
  * plate-calc.js — Visual plate calculator component
  */
@@ -55,7 +56,7 @@ export async function createPlateCalculator(targetWeight) {
         const result = calculatePlates(targetWeight, barWeight, plateInventory);
 
         if (targetWeight <= barWeight) {
-            resultsDiv.innerHTML = `<div class="text-center text-muted text-sm">Bar only (${barWeight} ${unit})</div>`;
+            resultsDiv.innerHTML = `<div class="text-center text-muted text-sm">Bar only (${escapeHTML(String(barWeight))} ${escapeHTML(unit)})</div>`;
             return;
         }
 

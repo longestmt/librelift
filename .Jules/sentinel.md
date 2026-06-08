@@ -1,0 +1,5 @@
+
+## 2024-05-25 - Comprehensive HTML Output Escaping
+**Vulnerability:** Several places in `src/pages/history.js`, `src/pages/workout.js`, `src/pages/analytics.js`, and `src/components/plate-calc.js` interpolated unescaped user-supplied variables directly into the DOM using `innerHTML` template literals, leading to potential Cross-Site Scripting (XSS). Specific parameters included `w.dayName`, `w.planName`, `ex.name`, `ex.muscleGroup`, `ex.equipment`, `activeWorkout.dayName`, `latest.value`, and `latest.unit`, as well as `barWeight` and `unit`.
+**Learning:** Even variables that seem safe or are primarily numbers (like `latest.value` or `w.dayName`) must be strictly sanitized when placed into `innerHTML`, as they are sourced from user input (e.g., via workout JSON imports, logs, or settings). Unsanitized injection inside HTML templates creates structural XSS vulnerabilities.
+**Prevention:** Consistently apply `escapeHTML()` to all template literal string interpolations containing data derived from user inputs, settings, or imported files prior to injection via `innerHTML`.
