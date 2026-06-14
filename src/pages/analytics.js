@@ -6,6 +6,7 @@
 import { getAll, getSetting } from '../data/db.js';
 import { createLineChart } from '../components/charts.js';
 import { formatDuration } from '../utils/format.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 export async function renderAnalyticsPage(container) {
   const workouts = await getAll('workouts');
@@ -156,7 +157,7 @@ function renderMuscleTab(container, sets, exercises, unit) {
     return `
           <div>
             <div class="flex items-center justify-between" style="margin-bottom:var(--sp-1)">
-              <span class="text-sm font-medium">${name}</span>
+              <span class="text-sm font-medium">${escapeHTML(name)}</span>
               <span class="text-xs text-muted">${data.sets} sets • ${fmtVol(data.volume)} ${unit}</span>
             </div>
             <div style="height:8px;background:var(--bg-elevated);border-radius:4px;overflow:hidden">
@@ -204,7 +205,7 @@ function renderExerciseTab(container, sets, exercises, workouts, unit) {
       <div class="card" data-exercise-card="${exId}">
         <div class="card-header" style="cursor:pointer" data-toggle-ex="${exId}">
           <div>
-            <div class="card-title" style="font-size:var(--text-sm)">${data.name}</div>
+            <div class="card-title" style="font-size:var(--text-sm)">${escapeHTML(data.name)}</div>
             <div class="text-xs text-muted">${data.sets.length} sets logged</div>
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" class="chevron-icon"><polyline points="6 9 12 15 18 9"/></svg>
