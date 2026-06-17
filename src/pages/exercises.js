@@ -10,6 +10,7 @@ import { createLineChart } from '../components/charts.js';
 import { getExerciseHistory } from '../engine/progression.js';
 import { createRMCalculator } from '../components/rm-calculator.js';
 import { getSetting } from '../data/db.js';
+import { escapeHTML, sanitizeUrl } from '../utils/sanitize.js';
 
 export async function renderExercisesPage(container) {
     const exercises = await getAll('exercises');
@@ -126,11 +127,11 @@ export async function renderExercisesPage(container) {
 
       <div style="margin-bottom:var(--sp-4)">
         <div class="text-sm text-secondary" style="margin-bottom:var(--sp-2)">Instructions</div>
-        <p class="text-sm" style="line-height:1.6">${ex.instructions || 'No instructions available.'}</p>
+        <p class="text-sm" style="line-height:1.6">${ex.instructions ? escapeHTML(ex.instructions) : 'No instructions available.'}</p>
       </div>
 
       ${ex.mediaUrl ? `
-        <a href="${ex.mediaUrl}" target="_blank" rel="noopener" class="btn btn-secondary btn-full" style="margin-bottom:var(--sp-4)">
+        <a href="${escapeHTML(sanitizeUrl(ex.mediaUrl))}" target="_blank" rel="noopener" class="btn btn-secondary btn-full" style="margin-bottom:var(--sp-4)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>
