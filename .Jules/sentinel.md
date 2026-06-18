@@ -1,0 +1,4 @@
+## 2024-05-20 - URI-based XSS via ex.mediaUrl
+**Vulnerability:** User-provided video URLs for exercises are injected into href attributes without URL sanitization. An attacker could use `javascript:alert(1)` to execute arbitrary JavaScript when the user clicks "Watch Video". `escapeHTML` alone does not stop this since the `javascript:` prefix is not an HTML entity issue.
+**Learning:** `escapeHTML` prevents HTML attribute breakout or script tags, but `href` and `src` attributes are still susceptible to XSS if the protocol itself is dangerous (e.g., `javascript:`).
+**Prevention:** Implement and use a `sanitizeUrl` function to parse the URL and block dangerous protocols (`javascript:`, `data:`, `vbscript:`) before passing them to `href` attributes, while still escaping the result to prevent attribute breakouts.
