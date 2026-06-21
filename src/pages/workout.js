@@ -292,7 +292,7 @@ function renderExerciseCard(ex, ei, unit) {
       </div>
       <div class="exercise-body" style="${ex.collapsed ? 'display:none' : ''}">
         <div style="display:grid;grid-template-columns:36px 1fr 1fr 56px 36px;gap:var(--sp-2);align-items:center;padding:var(--sp-1) 0;color:var(--text-muted);font-size:var(--text-xs);font-weight:500"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS${ex.config?.repsMax && ex.config.repsMax !== ex.config.reps ? ` (${ex.config.reps}–${ex.config.repsMax})` : ''}</span><span style="text-align:center">RPE</span><span style="text-align:center">✓</span></div>
-        ${ex.sets.map((set, si) => renderSetRow(set, si, ei)).join('')}
+        ${ex.sets.map((set, si) => renderSetRow(set, si, ei, ex.exerciseName)).join('')}
         <div class="flex gap-2" style="margin-top:var(--sp-2)"><button class="btn btn-ghost text-sm" data-add-set="${ei}" style="flex:1">+ Set</button>${ex.sets.length > 1 ? `<button class="btn btn-ghost text-sm text-danger" data-remove-set="${ei}">− Set</button>` : ''}<button class="btn btn-ghost text-sm" data-ex-note="${ei}" title="Note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button></div>
         ${ex.notes ? `<div class="text-xs text-muted" style="margin-top:var(--sp-1);padding:var(--sp-1) var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic">${escapeHTML(ex.notes)}</div>` : ''}
       </div></div>`;
@@ -348,7 +348,7 @@ function renderWorkoutExercises(container, unit) {
   container.innerHTML = html;
 }
 
-function renderSetRow(set, si, ei) {
+function renderSetRow(set, si, ei, exName) {
   const cls = set.completed ? 'completed' : '';
   const icon = set.completed ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '';
   const locked = set.completed ? 'readonly' : '';
@@ -356,10 +356,10 @@ function renderSetRow(set, si, ei) {
   const isPressed = set.completed ? 'true' : 'false';
   return `<div class="set-row">
     <span class="set-number" aria-hidden="true">${set.setNumber}</span>
-    <input class="input-inline ${lockedCls}" type="number" aria-label="Weight for set ${set.setNumber}" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal" ${locked}/>
-    <input class="input-inline ${lockedCls}" type="number" aria-label="Reps for set ${set.setNumber}" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric" ${locked}/>
-    <input class="input-inline ${lockedCls}" type="number" aria-label="RPE for set ${set.setNumber}" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—" ${locked}/>
-    <button class="set-check ${cls}" aria-label="Mark set ${set.setNumber} complete" aria-pressed="${isPressed}" data-ei="${ei}" data-si="${si}">${icon}</button>
+    <input class="input-inline ${lockedCls}" type="number" aria-label="Weight for set ${set.setNumber} of ${escapeHTML(exName)}" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal" ${locked}/>
+    <input class="input-inline ${lockedCls}" type="number" aria-label="Reps for set ${set.setNumber} of ${escapeHTML(exName)}" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric" ${locked}/>
+    <input class="input-inline ${lockedCls}" type="number" aria-label="RPE for set ${set.setNumber} of ${escapeHTML(exName)}" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—" ${locked}/>
+    <button class="set-check ${cls}" aria-label="Mark set ${set.setNumber} of ${escapeHTML(exName)} complete" aria-pressed="${isPressed}" data-ei="${ei}" data-si="${si}">${icon}</button>
   </div>`;
 }
 
