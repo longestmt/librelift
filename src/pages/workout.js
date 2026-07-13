@@ -17,12 +17,103 @@ import { formatDuration } from '../utils/format.js';
 
 let activeWorkout = null;
 let workoutInterval = null;
-let inactivityInterval = null;
+let inactivityTimeout = null;
 
-function trackActivity() {
+function saveWorkoutProgress() {
   if (!activeWorkout) return;
-  activeWorkout.lastActivityAt = Date.now();
   saveSession(activeWorkout);
+}
+
+function clearInactivityTimer() {
+  if (inactivityTimeout) {
+    clearTimeout(inactivityTimeout);
+    inactivityTimeout = null;
+  }
+}
+
+function pauseWorkoutForInactivity(startedAt, timeoutMs) {
+  if (!activeWorkout || activeWorkout.pausedAt || activeWorkout.inactivityStartedAt !== startedAt) return;
+
+  const pauseAt = startedAt + timeoutMs;
+  activeWorkout.pausedAt = pauseAt;
+  delete activeWorkout.inactivityStartedAt;
+  saveSession(activeWorkout);
+
+  if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+
+  const clock = document.querySelector('#workout-clock');
+  if (clock) {
+    updateWorkoutClock(clock, pauseAt);
+    clock.style.opacity = '0.5';
+  }
+  showToast('Workout auto-paused due to inactivity', 'info');
+}
+
+function scheduleInactivityTimer(autoPauseMin) {
+  clearInactivityTimer();
+  if (!activeWorkout || activeWorkout.pausedAt || !activeWorkout.inactivityStartedAt) return;
+  if (autoPauseMin <= 0) {
+    delete activeWorkout.inactivityStartedAt;
+    saveSession(activeWorkout);
+    return;
+  }
+
+  const startedAt = activeWorkout.inactivityStartedAt;
+  const timeoutMs = autoPauseMin * 60 * 1000;
+  const remainingMs = (startedAt + timeoutMs) - Date.now();
+
+  if (remainingMs <= 0) {
+    pauseWorkoutForInactivity(startedAt, timeoutMs);
+    return;
+  }
+
+  inactivityTimeout = setTimeout(() => {
+    inactivityTimeout = null;
+    if (!activeWorkout || activeWorkout.inactivityStartedAt !== startedAt) return;
+
+    // A suspended mobile app may deliver the callback late. The persisted
+    // deadline still determines the exact point at which the workout paused.
+    if (Date.now() < startedAt + timeoutMs) {
+      scheduleInactivityTimer(autoPauseMin);
+      return;
+    }
+    pauseWorkoutForInactivity(startedAt, timeoutMs);
+  }, remainingMs);
+}
+
+function restartInactivityTimer(autoPauseMin) {
+  if (!activeWorkout) return;
+
+  if (autoPauseMin <= 0) {
+    delete activeWorkout.inactivityStartedAt;
+    saveSession(activeWorkout);
+    clearInactivityTimer();
+    return;
+  }
+
+  const now = Date.now();
+  activeWorkout.inactivityStartedAt = now;
+  activeWorkout.lastActivityAt = now;
+  saveSession(activeWorkout);
+  scheduleInactivityTimer(autoPauseMin);
+}
+
+function resumeWorkout(autoPauseMin) {
+  if (!activeWorkout?.pausedAt) return;
+
+  const pausedElapsed = activeWorkout.pausedAt - activeWorkout.startTime;
+  activeWorkout.startTime = Date.now() - pausedElapsed;
+  delete activeWorkout.pausedAt;
+
+  const clock = document.querySelector('#workout-clock');
+  if (clock) {
+    updateWorkoutClock(clock);
+    clock.style.opacity = '1';
+  }
+
+  if (workoutInterval) clearInterval(workoutInterval);
+  workoutInterval = setInterval(() => updateWorkoutClock(clock), 1000);
+  restartInactivityTimer(autoPauseMin);
 }
 
 export async function renderWorkoutPage(container) {
@@ -155,18 +246,22 @@ async function startWorkoutFromPlan(plan, unit, overrideDayIndex = null) {
     workoutExercises.push({ exerciseId: ex.exerciseId, exerciseName: exercise?.name || ex.exerciseName || 'Unknown', config: ex, sets, suggestedWeight: suggestion.weight, suggestionReason: suggestion.reason, previousPerformance: lastSets, notes: '', collapsed: false });
   }
 
-  activeWorkout = { id: uuid(), planId: plan.id, planName: plan.name, dayName: day.name, dayIndex, startTime: Date.now(), exercises: workoutExercises, notes: '' };
+  const startTime = Date.now();
+  activeWorkout = { id: uuid(), planId: plan.id, planName: plan.name, dayName: day.name, dayIndex, startTime, inactivityStartedAt: startTime, exercises: workoutExercises, notes: '' };
   saveSession(activeWorkout);
   plan.currentDayIndex = (dayIndex + 1) % plan.days.length;
   await put('plans', plan);
 }
 
 function startEmptyWorkout() {
-  activeWorkout = { id: uuid(), planId: null, planName: null, dayName: 'Freestyle', dayIndex: 0, startTime: Date.now(), exercises: [], notes: '' };
+  const startTime = Date.now();
+  activeWorkout = { id: uuid(), planId: null, planName: null, dayName: 'Freestyle', dayIndex: 0, startTime, inactivityStartedAt: startTime, exercises: [], notes: '' };
   saveSession(activeWorkout);
 }
 
 async function renderActiveWorkout(container, unit) {
+  const autoPauseMin = await getSetting('autoPauseMin', 15);
+
   container.innerHTML = `
     <div class="flex items-center justify-between" style="margin-bottom:var(--sp-4)">
       <div><h1 class="page-title" style="font-size:var(--text-xl)">${activeWorkout.dayName || 'Workout'}</h1>
@@ -191,6 +286,8 @@ async function renderActiveWorkout(container, unit) {
   // Workout clock with pause (pausedAt is persisted on activeWorkout so it survives app restart)
   const clockEl = container.querySelector('#workout-clock');
 
+  if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+
   if (activeWorkout.pausedAt) {
     // Restore paused state from saved session
     clockEl.style.opacity = '0.5';
@@ -203,69 +300,32 @@ async function renderActiveWorkout(container, unit) {
 
   clockEl.addEventListener('click', () => {
     if (activeWorkout.pausedAt) {
-      // Resume: adjust startTime to account for paused duration
-      const pausedElapsed = activeWorkout.pausedAt - activeWorkout.startTime;
-      activeWorkout.startTime = Date.now() - pausedElapsed;
-      delete activeWorkout.pausedAt;
-      saveSession(activeWorkout);
-      clockEl.style.opacity = '1';
-      workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
+      resumeWorkout(autoPauseMin);
     } else {
       // Pause: record when we paused
       activeWorkout.pausedAt = Date.now();
+      delete activeWorkout.inactivityStartedAt;
       saveSession(activeWorkout);
+      clearInactivityTimer();
       clockEl.style.opacity = '0.5';
       if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
     }
   });
 
-  container.querySelector('#workout-notes').addEventListener('input', (e) => { activeWorkout.notes = e.target.value; trackActivity(); });
+  container.querySelector('#workout-notes').addEventListener('input', (e) => { activeWorkout.notes = e.target.value; saveWorkoutProgress(); });
 
-  // Initialize lastActivityAt if not set (e.g. workouts started before this feature)
-  if (!activeWorkout.lastActivityAt) {
-    activeWorkout.lastActivityAt = Date.now();
-    saveSession(activeWorkout);
-  }
-
-  // Auto-pause on inactivity
-  const autoPauseMin = await getSetting('autoPauseMin', 15);
-  if (autoPauseMin > 0) {
-    if (inactivityInterval) clearInterval(inactivityInterval);
-    inactivityInterval = setInterval(() => {
-      if (!activeWorkout || activeWorkout.pausedAt) return;
-      const idle = Date.now() - (activeWorkout.lastActivityAt || activeWorkout.startTime);
-      if (idle >= autoPauseMin * 60 * 1000) {
-        // Auto-pause
-        activeWorkout.pausedAt = Date.now();
-        saveSession(activeWorkout);
-        if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
-        const clk = container.querySelector('#workout-clock');
-        if (clk) clk.style.opacity = '0.5';
-        showToast('Workout auto-paused due to inactivity', 'info');
-      }
-    }, 30000);
-
-    // Also check on visibility change (returning from background)
-    document.addEventListener('visibilitychange', function onVisChange() {
-      if (!activeWorkout) { document.removeEventListener('visibilitychange', onVisChange); return; }
-      if (document.visibilityState === 'visible' && !activeWorkout.pausedAt) {
-        const idle = Date.now() - (activeWorkout.lastActivityAt || activeWorkout.startTime);
-        if (idle >= autoPauseMin * 60 * 1000) {
-          activeWorkout.pausedAt = Date.now();
-          saveSession(activeWorkout);
-          if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
-          const clk = container.querySelector('#workout-clock');
-          if (clk) clk.style.opacity = '0.5';
-          showToast('Workout auto-paused due to inactivity', 'info');
-        }
-      }
-    });
+  // Starting a workout starts the invisible inactivity timer. Returning to an
+  // already-running workout preserves its saved deadline rather than resetting it.
+  if (!activeWorkout.pausedAt && !activeWorkout.inactivityStartedAt) {
+    restartInactivityTimer(autoPauseMin);
+  } else {
+    scheduleInactivityTimer(autoPauseMin);
   }
 
   renderWorkoutExercises(exContainer, unit);
 
   // Event listeners set up ONCE here (not in renderWorkoutExercises which re-runs)
-  setupWorkoutEvents(exContainer, unit);
+  setupWorkoutEvents(exContainer, unit, autoPauseMin);
 
   container.querySelector('#add-exercise-btn').addEventListener('click', async () => {
     const exercises = await getAll('exercises');
@@ -374,7 +434,7 @@ function isSupersetRoundComplete(groupId, exercises) {
   return minCompleted === maxCompleted && minCompleted > 0;
 }
 
-function setupWorkoutEvents(container, unit) {
+function setupWorkoutEvents(container, unit, autoPauseMin) {
   container.addEventListener('click', async (e) => {
     // Check buttons FIRST (they are inside card-header, must not bubble to toggle)
     const historyBtn = e.target.closest('[data-show-history]');
@@ -447,7 +507,7 @@ function setupWorkoutEvents(container, unit) {
     }
 
     const toggle = e.target.closest('[data-toggle]');
-    if (toggle) { const ei = parseInt(toggle.dataset.toggle); activeWorkout.exercises[ei].collapsed = !activeWorkout.exercises[ei].collapsed; trackActivity(); renderWorkoutExercises(container, unit); return; }
+    if (toggle) { const ei = parseInt(toggle.dataset.toggle); activeWorkout.exercises[ei].collapsed = !activeWorkout.exercises[ei].collapsed; saveWorkoutProgress(); renderWorkoutExercises(container, unit); return; }
 
     const check = e.target.closest('.set-check');
     if (check) {
@@ -470,7 +530,8 @@ function setupWorkoutEvents(container, unit) {
         // Haptics & Animation
         hapticHeavy();
 
-        trackActivity();
+        if (activeWorkout.pausedAt) resumeWorkout(autoPauseMin);
+        else restartInactivityTimer(autoPauseMin);
         renderWorkoutExercises(container, unit);
 
         // Trigger animation on the newly rendered check button
@@ -497,17 +558,17 @@ function setupWorkoutEvents(container, unit) {
         set.completed = false;
 
         hapticLight();
-        trackActivity();
+        saveWorkoutProgress();
         renderWorkoutExercises(container, unit);
       }
       return;
     }
 
     const removeSet = e.target.closest('[data-remove-set]');
-    if (removeSet) { const ei = parseInt(removeSet.dataset.removeSet); const ex = activeWorkout.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); ex.sets.forEach((s, i) => s.setNumber = i + 1); trackActivity(); renderWorkoutExercises(container, unit); } return; }
+    if (removeSet) { const ei = parseInt(removeSet.dataset.removeSet); const ex = activeWorkout.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); ex.sets.forEach((s, i) => s.setNumber = i + 1); saveWorkoutProgress(); renderWorkoutExercises(container, unit); } return; }
 
     const addSet = e.target.closest('[data-add-set]');
-    if (addSet) { const ei = parseInt(addSet.dataset.addSet); const ex = activeWorkout.exercises[ei]; const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }); trackActivity(); renderWorkoutExercises(container, unit); return; }
+    if (addSet) { const ei = parseInt(addSet.dataset.addSet); const ex = activeWorkout.exercises[ei]; const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }); saveWorkoutProgress(); renderWorkoutExercises(container, unit); return; }
 
     const noteBtn = e.target.closest('[data-ex-note]');
     if (noteBtn) {
@@ -518,7 +579,7 @@ function setupWorkoutEvents(container, unit) {
               <button class="btn btn-primary btn-full" id="save-note-btn" style="margin-top:var(--sp-3)">Save</button>`;
       body.querySelector('#save-note-btn').addEventListener('click', () => {
         ex.notes = body.querySelector('#ex-note-input').value;
-        trackActivity();
+        saveWorkoutProgress();
         closeModal();
         renderWorkoutExercises(container, unit);
       });
@@ -532,13 +593,13 @@ function setupWorkoutEvents(container, unit) {
     const ei = parseInt(input.dataset.ei), si = parseInt(input.dataset.si), field = input.dataset.field;
     const val = parseFloat(input.value) || 0;
     activeWorkout.exercises[ei].sets[si][field] = val;
-    trackActivity();
+    saveWorkoutProgress();
   });
 }
 
-function updateWorkoutClock(el) {
+function updateWorkoutClock(el, now = Date.now()) {
   if (!el || !activeWorkout) return;
-  const s = Math.floor((Date.now() - activeWorkout.startTime) / 1000);
+  const s = Math.floor((now - activeWorkout.startTime) / 1000);
   el.textContent = `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
@@ -590,7 +651,7 @@ async function finishWorkout(container, unit) {
 async function commitFinish(container, unit, dur) {
   hapticSuccess();
   clearSession();
-  if (inactivityInterval) { clearInterval(inactivityInterval); inactivityInterval = null; }
+  clearInactivityTimer();
 
   try {
     if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
@@ -685,7 +746,7 @@ async function cancelWorkout(container, unit) {
 
 function cleanupWorkout() {
   if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
-  if (inactivityInterval) { clearInterval(inactivityInterval); inactivityInterval = null; }
+  clearInactivityTimer();
   const timerBar = document.querySelector('.rest-timer-bar');
   if (timerBar) timerBar.remove();
   stopTimer();

@@ -59,7 +59,7 @@ export async function renderSettingsPage(container) {
       <!-- Auto-Pause -->
       <div class="card">
         <div class="flex items-center justify-between">
-          <div><div class="card-title">Auto-Pause</div><div class="text-xs text-muted">Pause workout after inactivity (0 to disable)</div></div>
+          <div><div class="card-title">Auto-Pause</div><div class="text-xs text-muted">Pause when no set is completed in time (0 to disable)</div></div>
           <div class="flex items-center gap-2">
             <input class="input-inline" type="number" id="auto-pause" aria-label="Auto-pause timeout in minutes" value="${autoPauseMin}" style="width:72px" inputmode="numeric" />
             <span class="text-sm text-muted">min</span>
@@ -137,7 +137,7 @@ export async function renderSettingsPage(container) {
         <div class="card-title" style="margin-bottom:var(--sp-2)">About</div>
         <div class="text-sm text-secondary">
           <div class="flex items-center justify-between" style="margin-bottom:var(--sp-1)">
-            <div><strong>LibreLift</strong> v0.1.8.1</div>
+            <div><strong>LibreLift</strong> v0.1.8.2</div>
             <button class="btn btn-ghost text-xs" id="check-updates-btn" style="padding:var(--sp-1) var(--sp-2)">Check for Updates</button>
           </div>
           A free/libre, open-source lifting app.<br>
