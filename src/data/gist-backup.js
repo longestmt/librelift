@@ -1,11 +1,14 @@
 /**
  * gist-backup.js — GitHub Gist backup for LibreLift
- * Saves/restores full app data to a private GitHub Gist.
+ * Saves/restores full app data to a secret (unlisted) GitHub Gist.
  * Cleanly separated so it can be removed if needed.
  */
 
 import { exportAllData, importAllData } from './db.js';
 import { getSetting, setSetting } from './db.js';
+import { sanitizeBackupData } from './backup-security.js';
+import { validateBackupData } from './backup-validation.js';
+import { exportSafetySnapshot } from './io.js';
 
 const GIST_API = 'https://api.github.com/gists';
 const GIST_FILE = 'librelift-backup.json';
@@ -56,15 +59,8 @@ export async function pushBackup() {
     const token = await getGistToken();
     if (!token) throw new Error('No GitHub token configured');
 
-    const data = await exportAllData();
+    const data = sanitizeBackupData(await exportAllData());
     data.backedUpAt = new Date().toISOString();
-
-    // Remove sensitive information from the backup data before pushing to Gist
-    if (data.stores && data.stores.settings) {
-        data.stores.settings = data.stores.settings.filter(
-            s => s.key !== 'githubPAT' && s.key !== 'githubGistId'
-        );
-    }
 
     let content = JSON.stringify(data, null, 2);
     // Bulletproof: ensure literal string of the token doesn't exist anywhere in the payload
@@ -91,7 +87,7 @@ export async function pushBackup() {
         const gist = await res.json();
         return { id: gist.id, url: gist.html_url, updated: true };
     } else {
-        // Create new private gist
+        // Create a secret (unlisted) gist
         const res = await fetch(GIST_API, {
             method: 'POST',
             headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' },
@@ -135,24 +131,23 @@ export async function pullBackup() {
         content = await rawRes.text();
     }
 
-    const data = JSON.parse(content);
-    if (!data.stores) throw new Error('Invalid backup data');
+    let data;
+    try {
+        data = sanitizeBackupData(JSON.parse(content));
+    } catch {
+        throw new Error('The GitHub backup is not valid JSON.');
+    }
+    validateBackupData(data);
 
     return data;
 }
 
 /** Restore from gist backup (replaces local data) */
 export async function restoreFromGist() {
-    // Preserve current credentials so restoring doesn't disconnect us
-    const token = await getGistToken();
-    const gistId = await getGistId();
-
+    // Pull and validate before creating a snapshot or changing local data.
     const data = await pullBackup();
+    await exportSafetySnapshot();
     await importAllData(data, false);
-
-    // Restore them back to settings
-    if (token) await setGistToken(token);
-    if (gistId) await setSetting('githubGistId', gistId);
 
     return data;
 }

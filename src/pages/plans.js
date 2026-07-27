@@ -8,6 +8,7 @@ import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 import { hapticLight, hapticMedium } from '../utils/haptics.js';
 import { escapeHTML } from '../utils/sanitize.js';
+import { clearInvalidField, setInvalidField } from '../utils/accessibility.js';
 
 export async function renderPlansPage(container) {
   const plans = await getAll('plans');
@@ -92,7 +93,7 @@ export async function renderPlansPage(container) {
   // Plan card clicks
   const plansList = container.querySelector('#plans-list');
   plansList.addEventListener('click', async (e) => {
-    const card = e.target.closest('.card');
+    const card = e.target.closest('[data-plan-id]');
     if (!card) return;
     const planId = card.dataset.planId;
     if (!planId) return;
@@ -108,6 +109,7 @@ export async function renderPlansPage(container) {
       return;
     }
 
+    if (!e.target.closest('[data-open-plan]')) return;
     const plan = await getById('plans', planId);
     if (plan) {
       hapticLight();
@@ -117,7 +119,9 @@ export async function renderPlansPage(container) {
 
   // FAB for new plan
   const fab = document.createElement('button');
+  fab.type = 'button';
   fab.className = 'fab';
+  fab.setAttribute('aria-label', 'Create a program');
   fab.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
   fab.addEventListener('click', () => showCreatePlanModal(exercises));
   container.appendChild(fab);
@@ -205,7 +209,8 @@ function renderPlanCard(plan) {
   const exerciseCount = plan.days?.reduce((sum, d) => sum + (d.exercises?.length || 0), 0) || 0;
 
   return `
-    <div class="card card-clickable" data-plan-id="${plan.id}">
+    <div class="card card-clickable" data-plan-id="${escapeHTML(plan.id)}" style="position:relative">
+      <button type="button" class="plan-open-btn" data-open-plan style="width:100%;border:0;background:none;color:inherit;text-align:left;font:inherit;padding:0;padding-right:48px;cursor:pointer">
       <div class="card-header">
         <div>
           <div class="card-title">${escapeHTML(plan.name)}</div>
@@ -214,16 +219,15 @@ function renderPlanCard(plan) {
             <span class="badge badge-muted">${exerciseCount} exercises</span>
           </div>
         </div>
-        <div class="flex gap-2">
-          <button class="btn btn-icon btn-ghost delete-plan-btn" title="Delete">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-          </button>
-        </div>
       </div>
       ${plan.description ? `<p class="text-sm text-secondary">${escapeHTML(plan.description)}</p>` : ''}
       ${plan.schedule ? `<p class="text-xs text-muted" style="margin-top:var(--sp-2)">${escapeHTML(plan.schedule)}</p>` : ''}
+      </button>
+      <button type="button" class="btn btn-icon btn-ghost delete-plan-btn" aria-label="Delete ${escapeHTML(plan.name)}" style="position:absolute;right:var(--sp-3);top:var(--sp-3)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+      </button>
     </div>
   `;
 }
@@ -299,15 +303,15 @@ function showCreatePlanModal(exercises) {
   body.innerHTML = `
     <div class="flex flex-col gap-4">
       <div class="input-group">
-        <label class="input-label">Plan Name</label>
-        <input class="input" id="plan-name" placeholder="e.g. My Custom Plan" />
+        <label class="input-label" for="plan-name">Plan Name</label>
+        <input class="input" id="plan-name" autofocus placeholder="e.g. My Custom Plan" />
       </div>
       <div class="input-group">
-        <label class="input-label">Description (optional)</label>
+        <label class="input-label" for="plan-desc">Description (optional)</label>
         <textarea class="input" id="plan-desc" rows="2" placeholder="What's this plan about?"></textarea>
       </div>
       <div class="input-group">
-        <label class="input-label">Schedule (optional)</label>
+        <label class="input-label" for="plan-schedule">Schedule (optional)</label>
         <input class="input" id="plan-schedule" placeholder="e.g. 3 days/week" />
       </div>
 
@@ -345,9 +349,9 @@ function showCreatePlanModal(exercises) {
       return `
               <div class="flex items-center gap-2 text-sm">
                 <span style="flex:1">${exName}</span>
-                <input class="input-inline" aria-label="Sets for ${safeExName}" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:40px" />
+                <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Sets for ${safeExName}" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:52px" />
                 <span class="text-muted">×</span>
-                <input class="input-inline" aria-label="Reps for ${safeExName}" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:40px" />
+                <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Reps for ${safeExName}" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:52px" />
                 <button class="btn btn-ghost btn-icon" aria-label="Remove ${safeExName}" data-remove-ex="${di}-${ei}" style="width:28px;height:28px">×</button>
               </div>
             `;
@@ -390,11 +394,45 @@ function showCreatePlanModal(exercises) {
     }
   });
 
+  daysContainer.addEventListener('input', event => {
+    const input = event.target.closest('input[data-day]');
+    if (!input) return;
+    const dayIndex = Number.parseInt(input.dataset.day, 10);
+
+    if (!input.dataset.field) {
+      planDays[dayIndex].name = input.value;
+      return;
+    }
+
+    const exerciseIndex = Number.parseInt(input.dataset.ex, 10);
+    const value = Number.parseInt(input.value, 10);
+    if (Number.isFinite(value) && value > 0) {
+      planDays[dayIndex].exercises[exerciseIndex][input.dataset.field] = value;
+      clearInvalidField(input);
+    } else {
+      input.setAttribute('aria-invalid', 'true');
+    }
+  });
+
   // Save
+  const planNameInput = body.querySelector('#plan-name');
+  planNameInput.addEventListener('input', () => clearInvalidField(planNameInput));
   body.querySelector('#save-plan-btn').addEventListener('click', async () => {
-    const name = body.querySelector('#plan-name').value.trim();
+    const name = planNameInput.value.trim();
     if (!name) {
+      setInvalidField(planNameInput);
       showToast('Plan name is required', 'danger');
+      return;
+    }
+
+    const invalidConfig = [...daysContainer.querySelectorAll('input[data-field]')]
+      .find(input => {
+        const value = Number.parseInt(input.value, 10);
+        return !Number.isFinite(value) || value <= 0;
+      });
+    if (invalidConfig) {
+      setInvalidField(invalidConfig);
+      showToast('Sets and reps must be positive whole numbers', 'danger');
       return;
     }
 
@@ -424,20 +462,29 @@ function showCreatePlanModal(exercises) {
 
 function showExercisePicker(exercises) {
   return new Promise((resolve) => {
-    const body = openModal('', { title: 'Select Exercise' });
+    let resolved = false;
+    const finish = value => {
+      if (resolved) return;
+      resolved = true;
+      resolve(value);
+    };
+    const body = openModal('', {
+      title: 'Select Exercise',
+      onClose: () => finish(null),
+    });
     body.innerHTML = `
       <div class="search-bar" style="margin-bottom:var(--sp-3)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input class="input" id="picker-search" placeholder="Search..." />
+        <input class="input" type="search" id="picker-search" aria-label="Search exercises" autofocus placeholder="Search..." />
       </div>
       <div id="picker-list" style="max-height:300px; overflow-y:auto;" class="flex flex-col gap-1">
         ${exercises.map(ex => `
-          <button class="list-item" data-id="${ex.id}" style="width:100%; border:none; background:none; text-align:left; font-family:var(--font-sans); color:var(--text-primary)">
+          <button type="button" class="list-item" data-id="${escapeHTML(ex.id)}" style="width:100%; border:none; background:none; text-align:left; font-family:var(--font-sans); color:var(--text-primary)">
             <span style="flex:1">
-              <div class="text-sm font-medium">${ex.name}</div>
-              <div class="text-xs text-muted">${ex.muscleGroup} • ${ex.equipment}</div>
+              <div class="text-sm font-medium">${escapeHTML(ex.name)}</div>
+              <div class="text-xs text-muted">${escapeHTML(ex.muscleGroup)} • ${escapeHTML(ex.equipment)}</div>
             </span>
           </button>
         `).join('')}
@@ -458,8 +505,8 @@ function showExercisePicker(exercises) {
     list.addEventListener('click', (e) => {
       const item = e.target.closest('[data-id]');
       if (item) {
+        finish(item.dataset.id);
         closeModal();
-        resolve(item.dataset.id);
       }
     });
   });

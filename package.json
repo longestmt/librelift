@@ -1,13 +1,14 @@
 {
   "name": "librelift",
-  "version": "0.1.8.2",
+  "version": "0.1.8.3",
   "description": "A libre, FLOSS lifting app — track workouts, progressive overload, and more.",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.1.0",

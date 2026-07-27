@@ -8,6 +8,12 @@ import { showToast } from '../components/toast.js';
 import { STANDARD_PLATES_LB, STANDARD_PLATES_KG } from '../engine/progression.js';
 import { getGistToken, setGistToken, validateToken, pushBackup, pullBackup, restoreFromGist, getBackupInfo, disconnectGist } from '../data/gist-backup.js';
 import { getWebDavConfig, setWebDavConfig, pushToWebDav, pullFromWebDav, disconnectWebDav } from '../data/webdav.js';
+import {
+  clearInvalidField,
+  enableRovingKeyboard,
+  setInvalidField,
+} from '../utils/accessibility.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 export async function renderSettingsPage(container) {
   const unit = await getSetting('unit', 'lb');
@@ -28,9 +34,9 @@ export async function renderSettingsPage(container) {
       <!-- Units -->
       <div class="card">
         <div class="card-title" style="margin-bottom:var(--sp-3)">Units</div>
-        <div class="tabs" id="unit-tabs">
-          <button class="tab ${unit === 'lb' ? 'active' : ''}" data-unit="lb">Pounds (lb)</button>
-          <button class="tab ${unit === 'kg' ? 'active' : ''}" data-unit="kg">Kilograms (kg)</button>
+        <div class="tabs" id="unit-tabs" role="radiogroup" aria-label="Weight unit">
+          <button class="tab ${unit === 'lb' ? 'active' : ''}" role="radio" aria-checked="${unit === 'lb'}" tabindex="${unit === 'lb' ? '0' : '-1'}" data-unit="lb">Pounds (lb)</button>
+          <button class="tab ${unit === 'kg' ? 'active' : ''}" role="radio" aria-checked="${unit === 'kg'}" tabindex="${unit === 'kg' ? '0' : '-1'}" data-unit="kg">Kilograms (kg)</button>
         </div>
       </div>
 
@@ -39,7 +45,7 @@ export async function renderSettingsPage(container) {
         <div class="flex items-center justify-between">
           <div><div class="card-title">Bar Weight</div><div class="text-xs text-muted">Used for plate calculator</div></div>
           <div class="flex items-center gap-2">
-            <input class="input-inline" type="number" id="bar-weight" aria-label="Bar weight" value="${barWeight}" style="width:72px" inputmode="decimal" />
+            <input class="input-inline" type="number" min="0" step="any" id="bar-weight" aria-label="Bar weight" value="${barWeight}" style="width:72px" inputmode="decimal" />
             <span class="text-sm text-muted">${unit}</span>
           </div>
         </div>
@@ -50,7 +56,7 @@ export async function renderSettingsPage(container) {
         <div class="flex items-center justify-between">
           <div><div class="card-title">Rest Timer</div><div class="text-xs text-muted">Default rest between sets</div></div>
           <div class="flex items-center gap-2">
-            <input class="input-inline" type="number" id="rest-timer" aria-label="Rest timer duration in seconds" value="${restTimer}" style="width:72px" inputmode="numeric" />
+            <input class="input-inline" type="number" min="0" step="1" id="rest-timer" aria-label="Rest timer duration in seconds" value="${restTimer}" style="width:72px" inputmode="numeric" />
             <span class="text-sm text-muted">sec</span>
           </div>
         </div>
@@ -61,7 +67,7 @@ export async function renderSettingsPage(container) {
         <div class="flex items-center justify-between">
           <div><div class="card-title">Auto-Pause</div><div class="text-xs text-muted">Pause when no set is completed in time (0 to disable)</div></div>
           <div class="flex items-center gap-2">
-            <input class="input-inline" type="number" id="auto-pause" aria-label="Auto-pause timeout in minutes" value="${autoPauseMin}" style="width:72px" inputmode="numeric" />
+            <input class="input-inline" type="number" min="0" step="1" id="auto-pause" aria-label="Auto-pause timeout in minutes" value="${autoPauseMin}" style="width:72px" inputmode="numeric" />
             <span class="text-sm text-muted">min</span>
           </div>
         </div>
@@ -72,7 +78,7 @@ export async function renderSettingsPage(container) {
         <div class="flex items-center justify-between">
           <div><div class="card-title">Max Workout Duration</div><div class="text-xs text-muted">Prompt to confirm if workout exceeds this (0 to disable)</div></div>
           <div class="flex items-center gap-2">
-            <input class="input-inline" type="number" id="max-workout" aria-label="Maximum workout duration in minutes" value="${maxWorkoutMin}" style="width:72px" inputmode="numeric" />
+            <input class="input-inline" type="number" min="0" step="1" id="max-workout" aria-label="Maximum workout duration in minutes" value="${maxWorkoutMin}" style="width:72px" inputmode="numeric" />
             <span class="text-sm text-muted">min</span>
           </div>
         </div>
@@ -81,10 +87,10 @@ export async function renderSettingsPage(container) {
       <!-- Theme -->
       <div class="card">
         <div class="card-title" style="margin-bottom:var(--sp-3)">Theme</div>
-        <div class="tabs" id="theme-tabs">
-          <button class="tab ${theme === 'dark' ? 'active' : ''}" data-theme="dark">Compline</button>
-          <button class="tab ${theme === 'amoled' ? 'active' : ''}" data-theme="amoled">Vigil</button>
-          <button class="tab ${theme === 'light' ? 'active' : ''}" data-theme="light">Lauds</button>
+        <div class="tabs" id="theme-tabs" role="radiogroup" aria-label="Color theme">
+          <button class="tab ${theme === 'dark' ? 'active' : ''}" role="radio" aria-checked="${theme === 'dark'}" tabindex="${theme === 'dark' ? '0' : '-1'}" data-theme="dark">Compline</button>
+          <button class="tab ${theme === 'amoled' ? 'active' : ''}" role="radio" aria-checked="${theme === 'amoled'}" tabindex="${theme === 'amoled' ? '0' : '-1'}" data-theme="amoled">Vigil</button>
+          <button class="tab ${theme === 'light' ? 'active' : ''}" role="radio" aria-checked="${theme === 'light'}" tabindex="${theme === 'light' ? '0' : '-1'}" data-theme="light">Lauds</button>
         </div>
       </div>
 
@@ -96,7 +102,7 @@ export async function renderSettingsPage(container) {
           ${Object.keys(plateInventory).sort((a, b) => parseFloat(b) - parseFloat(a)).map(size => `
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium">${size} ${unit}</span>
-              <input class="input-inline" type="number" data-plate="${size}" aria-label="Inventory for ${size} ${unit} plates" value="${plateInventory[size]}" inputmode="numeric" style="width:64px"/>
+              <input class="input-inline" type="number" min="0" step="1" data-plate="${size}" aria-label="Inventory for ${size} ${unit} plates" value="${plateInventory[size]}" inputmode="numeric" style="width:64px"/>
             </div>
           `).join('')}
         </div>
@@ -105,29 +111,30 @@ export async function renderSettingsPage(container) {
       <!-- Data -->
       <div class="card">
         <div class="card-title" style="margin-bottom:var(--sp-3)">Data</div>
+        <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">Connection credentials stay on this device and are never included in backups.</div>
         <div class="flex flex-col gap-2">
           <button class="btn btn-secondary btn-full" id="export-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export Backup (JSON)
           </button>
-          <label class="btn btn-secondary btn-full" style="cursor:pointer">
+          <button type="button" class="btn btn-secondary btn-full" id="import-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import Backup
-            <input type="file" accept=".json" id="import-input" style="display:none" />
-          </label>
+          </button>
+          <input type="file" accept=".json,application/json" id="import-input" hidden />
         </div>
       </div>
 
       <!-- GitHub Backup -->
       <div class="card">
-        <div class="card-title" style="margin-bottom:var(--sp-2)">GitHub Cloud Backup</div>
-        <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">Sync your data to a private GitHub Gist</div>
+        <div class="card-title" style="margin-bottom:var(--sp-2)">GitHub Gist Backup</div>
+        <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">Back up to a secret, unlisted Gist. Anyone with its URL can view it.</div>
         <div id="gist-section"></div>
       </div>
 
       <!-- WebDAV Backup -->
       <div class="card">
-        <div class="card-title" style="margin-bottom:var(--sp-2)">WebDAV Sync</div>
+        <div class="card-title" style="margin-bottom:var(--sp-2)">WebDAV Backup</div>
         <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">Self-host your backups via Nextcloud, ownCloud, or any WebDAV server.</div>
         <div id="webdav-section"></div>
       </div>
@@ -137,7 +144,7 @@ export async function renderSettingsPage(container) {
         <div class="card-title" style="margin-bottom:var(--sp-2)">About</div>
         <div class="text-sm text-secondary">
           <div class="flex items-center justify-between" style="margin-bottom:var(--sp-1)">
-            <div><strong>LibreLift</strong> v0.1.8.2</div>
+            <div><strong>LibreLift</strong> v0.1.8.3</div>
             <button class="btn btn-ghost text-xs" id="check-updates-btn" style="padding:var(--sp-1) var(--sp-2)">Check for Updates</button>
           </div>
           A free/libre, open-source lifting app.<br>
@@ -161,30 +168,27 @@ export async function renderSettingsPage(container) {
     showToast(`Units set to ${newUnit}`, 'success');
     window.dispatchEvent(new HashChangeEvent('hashchange'));
   });
+  enableRovingKeyboard(container.querySelector('#unit-tabs'), { selector: '[role="radio"]' });
 
-  // Bar weight
-  container.querySelector('#bar-weight').addEventListener('change', async (e) => {
-    await setSetting('barWeight', parseFloat(e.target.value) || 45);
-    showToast('Bar weight saved', 'success');
-  });
+  function saveNonNegativeNumber(input, setting, successMessage, { integer = false } = {}) {
+    input.addEventListener('input', () => clearInvalidField(input));
+    input.addEventListener('change', async () => {
+      const value = integer ? Number.parseInt(input.value, 10) : Number.parseFloat(input.value);
+      if (!Number.isFinite(value) || value < 0) {
+        setInvalidField(input);
+        showToast('Enter a number of zero or more', 'danger');
+        return;
+      }
+      clearInvalidField(input);
+      await setSetting(setting, value);
+      showToast(successMessage, 'success');
+    });
+  }
 
-  // Rest timer
-  container.querySelector('#rest-timer').addEventListener('change', async (e) => {
-    await setSetting('restTimer', parseInt(e.target.value) || 90);
-    showToast('Rest timer saved', 'success');
-  });
-
-  // Auto-pause
-  container.querySelector('#auto-pause').addEventListener('change', async (e) => {
-    await setSetting('autoPauseMin', parseInt(e.target.value) || 0);
-    showToast('Auto-pause saved', 'success');
-  });
-
-  // Max workout duration
-  container.querySelector('#max-workout').addEventListener('change', async (e) => {
-    await setSetting('maxWorkoutMin', parseInt(e.target.value) || 0);
-    showToast('Max duration saved', 'success');
-  });
+  saveNonNegativeNumber(container.querySelector('#bar-weight'), 'barWeight', 'Bar weight saved');
+  saveNonNegativeNumber(container.querySelector('#rest-timer'), 'restTimer', 'Rest timer saved', { integer: true });
+  saveNonNegativeNumber(container.querySelector('#auto-pause'), 'autoPauseMin', 'Auto-pause saved', { integer: true });
+  saveNonNegativeNumber(container.querySelector('#max-workout'), 'maxWorkoutMin', 'Max duration saved', { integer: true });
 
   // Theme toggle
   container.querySelector('#theme-tabs').addEventListener('click', async (e) => {
@@ -194,16 +198,29 @@ export async function renderSettingsPage(container) {
     await setSetting('theme', newTheme);
     if (newTheme === 'dark') document.documentElement.removeAttribute('data-theme');
     else document.documentElement.setAttribute('data-theme', newTheme);
-    container.querySelector('#theme-tabs').querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.theme === newTheme));
+    container.querySelector('#theme-tabs').querySelectorAll('.tab').forEach(t => {
+      const active = t.dataset.theme === newTheme;
+      t.classList.toggle('active', active);
+      t.setAttribute('aria-checked', String(active));
+      t.tabIndex = active ? 0 : -1;
+    });
     const names = { dark: 'Compline', amoled: 'Vigil', light: 'Lauds' };
     showToast(`Theme: ${names[newTheme]}`, 'success');
   });
+  enableRovingKeyboard(container.querySelector('#theme-tabs'), { selector: '[role="radio"]' });
 
   // Plate inventory
   container.querySelector('#plate-inputs').addEventListener('change', async (e) => {
     const input = e.target.closest('[data-plate]');
     if (!input) return;
-    plateInventory[input.dataset.plate] = parseInt(input.value) || 0;
+    const value = Number.parseInt(input.value, 10);
+    if (!Number.isFinite(value) || value < 0) {
+      setInvalidField(input);
+      showToast('Plate count must be zero or more', 'danger');
+      return;
+    }
+    clearInvalidField(input);
+    plateInventory[input.dataset.plate] = value;
     await setSetting('plateInventory', { ...plateInventory });
     showToast('Plates updated', 'success');
   });
@@ -215,6 +232,9 @@ export async function renderSettingsPage(container) {
   });
 
   // Import
+  container.querySelector('#import-btn').addEventListener('click', () => {
+    container.querySelector('#import-input').click();
+  });
   container.querySelector('#import-input').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -229,13 +249,17 @@ export async function renderSettingsPage(container) {
     if (!token) {
       gistSection.innerHTML = `
         <div class="flex flex-col gap-2">
-          <input class="input" type="password" id="gist-token" placeholder="Paste GitHub Personal Access Token" style="font-size:var(--text-sm)" />
+          <input class="input" type="password" id="gist-token" aria-label="GitHub personal access token" autocomplete="off" placeholder="Paste GitHub Personal Access Token" style="font-size:var(--text-sm)" />
           <div class="text-xs text-muted">Create a token at <a href="https://github.com/settings/tokens/new?scopes=gist&description=LibreLift+Backup" target="_blank" style="color:var(--accent)">github.com/settings/tokens</a> with <strong>gist</strong> scope only.</div>
           <button class="btn btn-primary btn-full btn-sm" id="gist-connect">Connect GitHub</button>
         </div>`;
       gistSection.querySelector('#gist-connect').addEventListener('click', async () => {
         const tokenVal = gistSection.querySelector('#gist-token').value.trim();
-        if (!tokenVal) { showToast('Paste your token first', 'danger'); return; }
+        if (!tokenVal) {
+          setInvalidField(gistSection.querySelector('#gist-token'));
+          showToast('Paste your token first', 'danger');
+          return;
+        }
         try {
           const btn = gistSection.querySelector('#gist-connect');
           btn.textContent = 'Connecting…'; btn.disabled = true;
@@ -262,9 +286,10 @@ export async function renderSettingsPage(container) {
             ${info ? `<a href="${info.url}" target="_blank" class="text-xs" style="color:var(--accent)">View Gist ↗</a>` : ''}
           </div>
           <div class="flex gap-2">
-            <button class="btn btn-primary btn-sm" id="gist-push" style="flex:1">Push Backup</button>
-            <button class="btn btn-secondary btn-sm" id="gist-pull" style="flex:1">Restore from Cloud</button>
+            <button class="btn btn-primary btn-sm" id="gist-push" style="flex:1">Back Up Now</button>
+            <button class="btn btn-secondary btn-sm" id="gist-pull" style="flex:1">Restore Backup</button>
           </div>
+          <div class="text-xs text-muted">Restore replaces local workout data after downloading a safety copy.</div>
           <button class="btn btn-ghost btn-sm text-xs" id="gist-disconnect" style="color:var(--danger)">Disconnect GitHub</button>
         </div>`;
       gistSection.querySelector('#gist-push').addEventListener('click', async (e) => {
@@ -279,11 +304,12 @@ export async function renderSettingsPage(container) {
         } catch (err) {
           showToast('Backup failed: ' + err.message, 'danger');
         } finally {
-          btn.textContent = 'Push Backup';
+          btn.textContent = 'Back Up Now';
           btn.disabled = false;
         }
       });
       let gistPullConfirm = false;
+      let gistPullConfirmTimer = null;
       gistSection.querySelector('#gist-pull').addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -293,19 +319,25 @@ export async function renderSettingsPage(container) {
           const oldText = btn.textContent;
           btn.textContent = 'Tap to confirm';
           btn.style.color = 'var(--danger)';
-          setTimeout(() => { gistPullConfirm = false; btn.textContent = oldText; btn.style.color = ''; }, 3000);
+          gistPullConfirmTimer = setTimeout(() => {
+            gistPullConfirm = false;
+            btn.textContent = oldText;
+            btn.style.color = '';
+          }, 3000);
           return;
         }
+        clearTimeout(gistPullConfirmTimer);
+        gistPullConfirm = false;
         btn.style.color = '';
         try {
-          btn.textContent = 'Restoring…';
+          btn.textContent = 'Restoring safely…';
           btn.disabled = true;
           await restoreFromGist();
-          showToast('Data restored from backup!', 'success');
+          showToast('Backup restored. A safety copy was downloaded.', 'success');
           window.dispatchEvent(new HashChangeEvent('hashchange'));
         } catch (err) {
           showToast('Restore failed: ' + err.message, 'danger');
-          btn.textContent = 'Restore from Cloud';
+          btn.textContent = 'Restore Backup';
           btn.disabled = false;
         }
       });
@@ -338,9 +370,9 @@ export async function renderSettingsPage(container) {
     if (!config.url || !config.username || !config.password) {
       webdavSection.innerHTML = `
         <div class="flex flex-col gap-2">
-          <input class="input" type="url" id="webdav-url" placeholder="https://nextcloud.example.com/remote.php/webdav/LibreLift/" style="font-size:var(--text-sm)" />
-          <input class="input" type="text" id="webdav-user" placeholder="Username" style="font-size:var(--text-sm)" />
-          <input class="input" type="password" id="webdav-pass" placeholder="App Password / Token" style="font-size:var(--text-sm)" />
+          <input class="input" type="url" id="webdav-url" aria-label="WebDAV server URL" autocomplete="url" placeholder="https://nextcloud.example.com/remote.php/webdav/LibreLift/" style="font-size:var(--text-sm)" />
+          <input class="input" type="text" id="webdav-user" aria-label="WebDAV username" autocomplete="username" placeholder="Username" style="font-size:var(--text-sm)" />
+          <input class="input" type="password" id="webdav-pass" aria-label="WebDAV app password or token" autocomplete="current-password" placeholder="App Password / Token" style="font-size:var(--text-sm)" />
           <button class="btn btn-primary btn-full btn-sm" id="webdav-connect" style="margin-top:var(--sp-2)">Save WebDAV Config</button>
         </div>`;
 
@@ -350,6 +382,12 @@ export async function renderSettingsPage(container) {
         const pass = webdavSection.querySelector('#webdav-pass').value.trim();
 
         if (!url || !user || !pass) {
+          const firstMissing = [
+            webdavSection.querySelector('#webdav-url'),
+            webdavSection.querySelector('#webdav-user'),
+            webdavSection.querySelector('#webdav-pass'),
+          ].find(input => !input.value.trim());
+          setInvalidField(firstMissing);
           showToast('Please fill out all fields', 'warning');
           return;
         }
@@ -368,18 +406,22 @@ export async function renderSettingsPage(container) {
         }
       });
     } else {
+      const webdavLastBackup = await getSetting('webdavLastBackup', null);
+      const lastBackupText = webdavLastBackup ? new Date(webdavLastBackup).toLocaleString() : 'Never';
       webdavSection.innerHTML = `
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
             <div>
               <div class="text-sm font-medium text-success">● Connected</div>
-              <div class="text-xs text-muted" style="word-break: break-all;">${config.url}</div>
+              <div class="text-xs text-muted">Last backup: ${lastBackupText}</div>
+              <div class="text-xs text-muted" style="word-break: break-all;">${escapeHTML(config.url)}</div>
             </div>
           </div>
           <div class="flex gap-2" style="margin-top:var(--sp-2)">
-            <button class="btn btn-primary btn-sm" id="webdav-push" style="flex:1">Push Backup</button>
-            <button class="btn btn-secondary btn-sm" id="webdav-pull" style="flex:1">Restore from Server</button>
+            <button class="btn btn-primary btn-sm" id="webdav-push" style="flex:1">Back Up Now</button>
+            <button class="btn btn-secondary btn-sm" id="webdav-pull" style="flex:1">Restore Backup</button>
           </div>
+          <div class="text-xs text-muted">Restore replaces local workout data after downloading a safety copy.</div>
           <button class="btn btn-ghost btn-sm text-xs" id="webdav-disconnect" style="color:var(--danger)">Clear Configuration</button>
         </div>`;
 
@@ -392,15 +434,16 @@ export async function renderSettingsPage(container) {
           btn.disabled = true;
           await pushToWebDav();
           showToast('Backup successfully pushed to WebDAV!', 'success');
+          renderWebDavUI();
         } catch (err) {
           showToast('Failed: ' + err.message, 'danger');
-        } finally {
-          btn.textContent = 'Push Backup';
+          btn.textContent = 'Back Up Now';
           btn.disabled = false;
         }
       });
 
       let webdavPullConfirm = false;
+      let webdavPullConfirmTimer = null;
       webdavSection.querySelector('#webdav-pull').addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -410,19 +453,25 @@ export async function renderSettingsPage(container) {
           const oldText = btn.textContent;
           btn.textContent = 'Tap to confirm';
           btn.style.color = 'var(--danger)';
-          setTimeout(() => { webdavPullConfirm = false; btn.textContent = oldText; btn.style.color = ''; }, 3000);
+          webdavPullConfirmTimer = setTimeout(() => {
+            webdavPullConfirm = false;
+            btn.textContent = oldText;
+            btn.style.color = '';
+          }, 3000);
           return;
         }
+        clearTimeout(webdavPullConfirmTimer);
+        webdavPullConfirm = false;
         btn.style.color = '';
         try {
-          btn.textContent = 'Restoring…';
+          btn.textContent = 'Restoring safely…';
           btn.disabled = true;
           await pullFromWebDav();
-          showToast('Data restored from WebDAV backup!', 'success');
+          showToast('Backup restored. A safety copy was downloaded.', 'success');
           window.dispatchEvent(new HashChangeEvent('hashchange'));
         } catch (err) {
           showToast('Restore Failed: ' + err.message, 'danger');
-          btn.textContent = 'Restore from Server';
+          btn.textContent = 'Restore Backup';
           btn.disabled = false;
         }
       });

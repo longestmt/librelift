@@ -1,323 +1,281 @@
 /**
- * analytics.js — Analytics (Beta) page
- * Lifetime metrics, weekly report, muscle engagement, exercise analytics
+ * analytics.js — Focused progress review
+ * Answers: how consistently am I training, and are my lifts moving?
  */
 
 import { getAll, getSetting } from '../data/db.js';
 import { createLineChart } from '../components/charts.js';
+import { renderExerciseProgressList } from '../components/exercise-progress.js';
+import {
+  calculateVolumeByUnit,
+  resolveSetUnit,
+} from '../engine/progress-metrics.js';
 import { formatDuration } from '../utils/format.js';
+import { escapeHTML } from '../utils/sanitize.js';
+import { enableRovingKeyboard } from '../utils/accessibility.js';
+
+function parseLocalDate(value) {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatShortDate(value) {
+  const date = parseLocalDate(value);
+  if (!date) return value || 'Unknown';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatVolume(value) {
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+  return Math.round(value).toLocaleString();
+}
+
+function formatVolumes(volumes, fallbackUnit) {
+  const entries = [...volumes.entries()].filter(([, value]) => value > 0);
+  if (entries.length === 0) return `0 ${escapeHTML(fallbackUnit)}`;
+  return entries
+    .map(([unit, value]) => `${formatVolume(value)} ${escapeHTML(unit)}`)
+    .join(' + ');
+}
 
 export async function renderAnalyticsPage(container) {
-  const workouts = await getAll('workouts');
-  const sets = await getAll('sets');
-  const exercises = await getAll('exercises');
-  const unit = await getSetting('unit', 'lb');
+  const [workouts, sets, exercises, bodyWeight, fallbackUnit] = await Promise.all([
+    getAll('workouts'),
+    getAll('sets'),
+    getAll('exercises'),
+    getAll('bodyWeight'),
+    getSetting('unit', 'lb'),
+  ]);
+  const workoutById = new Map(workouts.map(workout => [workout.id, workout]));
 
-  // Compute metrics
   const now = new Date();
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - now.getDay());
   weekStart.setHours(0, 0, 0, 0);
 
-  const totalWorkouts = workouts.length;
-  const totalDuration = workouts.reduce((s, w) => s + (w.durationSec || 0), 0);
-  const totalVolume = sets.filter(s => s.completed).reduce((s, r) => s + (r.weight || 0) * (r.reps || 0), 0);
-  const totalSets = sets.filter(s => s.completed).length;
+  const completedSets = sets.filter(set => set.completed);
+  const weekWorkouts = workouts.filter(workout => {
+    const date = parseLocalDate(workout.date);
+    return date && date >= weekStart && date <= now;
+  });
+  const weekWorkoutIds = new Set(weekWorkouts.map(workout => workout.id));
+  const weekSets = completedSets.filter(set => weekWorkoutIds.has(set.workoutId));
 
-  // Weekly
-  const weekWorkouts = workouts.filter(w => new Date(w.date) >= weekStart);
-  const weekWorkoutIds = new Set(weekWorkouts.map(w => w.id));
-  const weekSets = sets.filter(s => weekWorkoutIds.has(s.workoutId) && s.completed);
-  const weekDuration = weekWorkouts.reduce((s, w) => s + (w.durationSec || 0), 0);
-  const weekVolume = weekSets.reduce((s, r) => s + (r.weight || 0) * (r.reps || 0), 0);
-
-  // First workout date
-  const firstDate = workouts.length > 0 ? workouts.reduce((min, w) => w.date < min ? w.date : min, workouts[0].date) : null;
-  const daysSinceStart = firstDate ? Math.max(1, Math.floor((now - new Date(firstDate)) / 86400000)) : 0;
-
-  const fmtDur = formatDuration;
-  const fmtVol = (v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toLocaleString();
+  const totalDuration = workouts.reduce((sum, workout) => sum + (workout.durationSec || 0), 0);
+  const weekDuration = weekWorkouts.reduce((sum, workout) => sum + (workout.durationSec || 0), 0);
+  const totalVolumes = calculateVolumeByUnit(completedSets, workoutById, fallbackUnit);
+  const weekVolumes = calculateVolumeByUnit(weekSets, workoutById, fallbackUnit);
+  const firstDate = workouts.reduce(
+    (earliest, workout) => !earliest || workout.date < earliest ? workout.date : earliest,
+    null
+  );
+  const hasLegacyUnits = sets.some(set => !set.unit)
+    && workouts.some(workout => !workout.unit);
 
   container.innerHTML = `
-    <!-- Lifetime Metrics -->
+    ${workouts.length === 0 ? `
+      <div class="empty-state" style="margin-bottom:var(--sp-4)">
+        <div class="empty-state-title">Your progress starts with a completed workout</div>
+        <div class="empty-state-text">Once you log one, this page will summarize your consistency and lift trends.</div>
+      </div>` : ''}
+
+    ${hasLegacyUnits ? `
+      <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">
+        Older records without a saved unit use your current ${escapeHTML(fallbackUnit)} setting.
+      </div>` : ''}
+
     <div class="card" style="margin-bottom:var(--sp-4)">
-      <div class="card-header"><div class="card-title" style="font-size:var(--text-sm)">Lifetime Metrics</div>${firstDate ? `<span class="text-xs text-muted">Since ${firstDate}</span>` : ''}</div>
+      <div class="card-header">
+        <div class="card-title" style="font-size:var(--text-sm)">All Time</div>
+        ${firstDate ? `<span class="text-xs text-muted">Since ${escapeHTML(formatShortDate(firstDate))}</span>` : ''}
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-top:var(--sp-3)">
-        <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${totalWorkouts}</div>
-          <div class="text-xs text-muted">Workouts</div>
-        </div>
-        <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${fmtDur(totalDuration)}</div>
-          <div class="text-xs text-muted">Time Training</div>
-        </div>
-        <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${fmtVol(totalVolume)}</div>
-          <div class="text-xs text-muted">${unit} Lifted</div>
-        </div>
-        <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-xl)">${totalSets}</div>
-          <div class="text-xs text-muted">Sets Completed</div>
-        </div>
+        ${metric(workouts.length, 'Workouts')}
+        ${metric(formatDuration(totalDuration), 'Time Training')}
+        ${metric(formatVolumes(totalVolumes, fallbackUnit), 'Volume')}
+        ${metric(completedSets.length, 'Sets Completed')}
       </div>
     </div>
 
-    <!-- Weekly Report -->
     <div class="card" style="margin-bottom:var(--sp-4)">
-      <div class="card-header"><div class="card-title" style="font-size:var(--text-sm)">This Week</div><span class="text-xs text-muted">${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — Now</span></div>
+      <div class="card-header">
+        <div class="card-title" style="font-size:var(--text-sm)">This Week</div>
+        <span class="text-xs text-muted">${escapeHTML(formatShortDate(toDateKey(weekStart)))} — Now</span>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-3);margin-top:var(--sp-3)">
-        <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-lg)">${weekWorkouts.length}</div>
-          <div class="text-xs text-muted">Workouts</div>
-        </div>
-        <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-lg)">${fmtDur(weekDuration)}</div>
-          <div class="text-xs text-muted">Duration</div>
-        </div>
-        <div class="text-center">
-          <div class="font-bold text-accent" style="font-size:var(--text-lg)">${fmtVol(weekVolume)}</div>
-          <div class="text-xs text-muted">${unit} Volume</div>
-        </div>
+        ${metric(weekWorkouts.length, 'Workouts', 'var(--text-lg)')}
+        ${metric(formatDuration(weekDuration), 'Duration', 'var(--text-lg)')}
+        ${metric(formatVolumes(weekVolumes, fallbackUnit), 'Volume', 'var(--text-lg)')}
       </div>
     </div>
 
-    <!-- Bodyweight -->
     <div class="card" style="margin-bottom:var(--sp-4)">
-      <div class="card-header"><div class="card-title" style="font-size:var(--text-sm)">Bodyweight</div></div>
+      <div class="card-header">
+        <div class="card-title" style="font-size:var(--text-sm)">Bodyweight</div>
+      </div>
       <div id="bw-chart-area" style="margin-top:var(--sp-2)"></div>
     </div>
 
-    <!-- Tab Bar -->
-    <div class="flex gap-2" style="margin-bottom:var(--sp-4)">
-      <button class="btn btn-sm analytics-tab active" data-tab="muscle" style="flex:1">Muscle Engagement</button>
-      <button class="btn btn-sm analytics-tab" data-tab="exercise" style="flex:1">Exercise Analytics</button>
+    <div class="flex gap-2" role="tablist" aria-label="Progress detail" style="margin-bottom:var(--sp-4)">
+      <button type="button" class="btn btn-sm analytics-tab active" id="progress-exercises-tab" role="tab" aria-controls="analytics-tab-content" aria-selected="true" tabindex="0" data-tab="exercise" style="flex:1">Exercises</button>
+      <button type="button" class="btn btn-sm analytics-tab" id="progress-muscles-tab" role="tab" aria-controls="analytics-tab-content" aria-selected="false" tabindex="-1" data-tab="muscle" style="flex:1">Muscle Groups</button>
     </div>
 
-    <div id="analytics-tab-content"></div>
+    <div id="analytics-tab-content" role="tabpanel" aria-labelledby="progress-exercises-tab"></div>
   `;
 
-  // Render bodyweight chart
-  const bwEntries = await getAll('bodyWeight');
-  const bwArea = container.querySelector('#bw-chart-area');
-  if (bwEntries.length > 0) {
-    const sorted = bwEntries.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    const latest = sorted[sorted.length - 1];
-    const chartData = sorted.map(e => ({ label: (e.date || '').slice(5), value: e.value }));
-    bwArea.innerHTML = `<div class="flex items-center justify-between" style="margin-bottom:var(--sp-2)"><span class="font-bold text-accent" style="font-size:var(--text-lg)">${latest.value} ${latest.unit || unit}</span><span class="text-xs text-muted">${sorted.length} entries</span></div>`;
-    const width = Math.min(bwArea.offsetWidth || 300, 500);
-    const chart = createLineChart(chartData, { width, height: 140, label: `Weight (${unit})` });
-    bwArea.appendChild(chart);
-  } else {
-    bwArea.innerHTML = `<div class="text-sm text-muted" style="text-align:center;padding:var(--sp-3)">No bodyweight data yet — log it after finishing a workout</div>`;
-  }
+  renderBodyweight(container.querySelector('#bw-chart-area'), bodyWeight, fallbackUnit);
 
   const tabContent = container.querySelector('#analytics-tab-content');
-  const tabs = container.querySelectorAll('.analytics-tab');
+  const tabs = [...container.querySelectorAll('.analytics-tab')];
 
   function activateTab(tab) {
-    tabs.forEach(t => { t.classList.toggle('active', t === tab); t.classList.toggle('btn-primary', t === tab); t.classList.toggle('btn-secondary', t !== tab); });
-    if (tab.dataset.tab === 'muscle') renderMuscleTab(tabContent, sets, exercises, unit);
-    else renderExerciseTab(tabContent, sets, exercises, workouts, unit);
+    tabs.forEach(button => {
+      const active = button === tab;
+      button.classList.toggle('active', active);
+      button.classList.toggle('btn-primary', active);
+      button.classList.toggle('btn-secondary', !active);
+      button.setAttribute('aria-selected', String(active));
+      button.tabIndex = active ? 0 : -1;
+    });
+    tabContent.setAttribute('aria-labelledby', tab.id);
+
+    if (tab.dataset.tab === 'exercise') {
+      renderExerciseProgressList(tabContent, {
+        exercises,
+        sets,
+        workouts,
+        fallbackUnit,
+      });
+    } else {
+      renderMuscleTab(tabContent, sets, exercises, workoutById, fallbackUnit);
+    }
   }
 
-  tabs.forEach(t => t.addEventListener('click', () => activateTab(t)));
+  tabs.forEach(tab => tab.addEventListener('click', () => activateTab(tab)));
+  enableRovingKeyboard(
+    container.querySelector('[role="tablist"][aria-label="Progress detail"]'),
+    { selector: '[role="tab"]' }
+  );
   activateTab(tabs[0]);
 }
 
-function renderMuscleTab(container, sets, exercises, unit) {
-  // Group completed sets by muscle group
-  const exMap = new Map();
-  for (const ex of exercises) exMap.set(ex.id, ex);
+function metric(value, label, size = 'var(--text-xl)') {
+  return `
+    <div class="text-center" style="min-width:0">
+      <div class="font-bold text-accent" style="font-size:${size};overflow-wrap:anywhere">${escapeHTML(String(value))}</div>
+      <div class="text-xs text-muted">${label}</div>
+    </div>`;
+}
 
-  const muscleData = {};
-  for (const s of sets) {
-    if (!s.completed) continue;
-    const ex = exMap.get(s.exerciseId);
-    if (!ex) continue;
-    const mg = ex.muscleGroup || 'Other';
-    if (!muscleData[mg]) muscleData[mg] = { sets: 0, volume: 0, exercises: new Set() };
-    muscleData[mg].sets++;
-    muscleData[mg].volume += (s.weight || 0) * (s.reps || 0);
-    muscleData[mg].exercises.add(ex.name);
+function toDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function renderBodyweight(container, entries, fallbackUnit) {
+  if (entries.length === 0) {
+    container.innerHTML = `
+      <div class="text-sm text-muted" style="text-align:center;padding:var(--sp-3)">
+        No bodyweight data yet — you can log it after finishing a workout.
+      </div>`;
+    return;
   }
 
-  const sorted = Object.entries(muscleData).sort((a, b) => b[1].sets - a[1].sets);
-  const maxSets = sorted.length > 0 ? sorted[0][1].sets : 1;
+  const byUnit = new Map();
+  for (const entry of entries) {
+    if (!Number.isFinite(entry.value)) continue;
+    const unit = entry.unit || fallbackUnit;
+    if (!byUnit.has(unit)) byUnit.set(unit, []);
+    byUnit.get(unit).push(entry);
+  }
 
-  const fmtVol = (v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toLocaleString();
+  if (byUnit.size === 0) {
+    container.innerHTML = '<div class="text-sm text-muted" style="text-align:center;padding:var(--sp-3)">No valid bodyweight entries yet.</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  for (const [unit, unitEntries] of byUnit) {
+    unitEntries.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const latest = unitEntries[unitEntries.length - 1];
+    const section = document.createElement('div');
+    section.style.marginTop = 'var(--sp-2)';
+    section.innerHTML = `
+      <div class="flex items-center justify-between" style="margin-bottom:var(--sp-2)">
+        <span class="font-bold text-accent" style="font-size:var(--text-lg)">${escapeHTML(String(latest.value))} ${escapeHTML(unit)}</span>
+        <span class="text-xs text-muted">${unitEntries.length} ${unitEntries.length === 1 ? 'entry' : 'entries'}</span>
+      </div>`;
+    section.appendChild(createLineChart(
+      unitEntries.map(entry => ({
+        label: formatShortDate(entry.date),
+        value: entry.value,
+      })),
+      {
+        width: Math.min(container.clientWidth || 360, 560),
+        height: 140,
+        label: `Bodyweight (${unit})`,
+      }
+    ));
+    container.appendChild(section);
+  }
+}
+
+function renderMuscleTab(container, sets, exercises, workoutById, fallbackUnit) {
+  const exerciseById = new Map(exercises.map(exercise => [exercise.id, exercise]));
+  const muscleData = new Map();
+
+  for (const set of sets) {
+    if (!set.completed) continue;
+    const exercise = exerciseById.get(set.exerciseId);
+    if (!exercise) continue;
+
+    const muscle = exercise.muscleGroup || 'Other';
+    if (!muscleData.has(muscle)) {
+      muscleData.set(muscle, { sets: 0, volumes: new Map(), exercises: new Set() });
+    }
+
+    const data = muscleData.get(muscle);
+    data.sets++;
+    data.exercises.add(exercise.name);
+    if (Number.isFinite(set.weight) && Number.isFinite(set.reps)) {
+      const unit = resolveSetUnit(set, workoutById.get(set.workoutId), fallbackUnit);
+      data.volumes.set(
+        unit,
+        (data.volumes.get(unit) || 0) + Math.max(0, set.weight) * Math.max(0, set.reps)
+      );
+    }
+  }
+
+  const sorted = [...muscleData.entries()].sort((a, b) => b[1].sets - a[1].sets);
+  const maxSets = sorted[0]?.[1].sets || 1;
 
   container.innerHTML = `
     <div class="card">
-      <div class="card-header"><div class="card-title" style="font-size:var(--text-sm)">Sets by Muscle Group</div></div>
-      ${sorted.length === 0 ? '<div class="text-sm text-muted" style="padding:var(--sp-4);text-align:center">No workout data yet</div>' : ''}
-      <div class="flex flex-col gap-3" style="margin-top:var(--sp-3)">
-        ${sorted.map(([name, data]) => {
-    const pct = Math.round((data.sets / maxSets) * 100);
-    return `
-          <div>
-            <div class="flex items-center justify-between" style="margin-bottom:var(--sp-1)">
-              <span class="text-sm font-medium">${name}</span>
-              <span class="text-xs text-muted">${data.sets} sets • ${fmtVol(data.volume)} ${unit}</span>
-            </div>
-            <div style="height:8px;background:var(--bg-elevated);border-radius:4px;overflow:hidden">
-              <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:4px;transition:width 500ms ease"></div>
-            </div>
-            <div class="text-xs text-muted" style="margin-top:2px">${data.exercises.size} exercise${data.exercises.size !== 1 ? 's' : ''}</div>
-          </div>`;
-  }).join('')}
+      <div class="card-header">
+        <div class="card-title" style="font-size:var(--text-sm)">Completed Sets by Muscle Group</div>
       </div>
-    </div>
-  `;
-}
-
-function renderExerciseTab(container, sets, exercises, workouts, unit) {
-  // Group sets by exercise
-  const exMap = new Map();
-  for (const ex of exercises) exMap.set(ex.id, ex);
-
-  const exerciseData = {};
-  for (const s of sets) {
-    if (!s.completed) continue;
-    const id = s.exerciseId;
-    if (!exerciseData[id]) exerciseData[id] = { name: s.exerciseName || exMap.get(id)?.name || 'Unknown', sets: [] };
-    exerciseData[id].sets.push(s);
-  }
-
-  // Sort by most recent/most used
-  const sorted = Object.entries(exerciseData).sort((a, b) => b[1].sets.length - a[1].sets.length);
-
-  // Workout date lookup
-  const workoutDates = new Map();
-  for (const w of workouts) workoutDates.set(w.id, w.date);
-
-  container.innerHTML = `
-    <div class="flex flex-col gap-3">
-      ${sorted.length === 0 ? '<div class="card"><div class="text-sm text-muted" style="padding:var(--sp-4);text-align:center">No workout data yet</div></div>' : ''}
-      ${sorted.map(([exId, data]) => {
-    // Compute PRs
-    const maxWeight = Math.max(...data.sets.map(s => s.weight || 0));
-    const maxSetVol = Math.max(...data.sets.map(s => (s.weight || 0) * (s.reps || 0)));
-    const best1RM = Math.max(...data.sets.map(s => estimate1RM(s.weight, s.reps)));
-    const maxReps = Math.max(...data.sets.map(s => s.reps || 0));
-
-    return `
-      <div class="card" data-exercise-card="${exId}">
-        <div class="card-header" style="cursor:pointer" data-toggle-ex="${exId}">
-          <div>
-            <div class="card-title" style="font-size:var(--text-sm)">${data.name}</div>
-            <div class="text-xs text-muted">${data.sets.length} sets logged</div>
-          </div>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" class="chevron-icon"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div class="exercise-detail" id="detail-${exId}" style="display:none">
-          <!-- PRs -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);margin-top:var(--sp-3)">
-            <div class="card" style="padding:var(--sp-2);background:var(--bg-elevated)">
-              <div class="text-xs text-muted">Max Weight</div>
-              <div class="font-bold text-accent">${maxWeight} ${unit}</div>
-            </div>
-            <div class="card" style="padding:var(--sp-2);background:var(--bg-elevated)">
-              <div class="text-xs text-muted">Best Est. 1RM</div>
-              <div class="font-bold text-accent">${Math.round(best1RM)} ${unit}</div>
-            </div>
-            <div class="card" style="padding:var(--sp-2);background:var(--bg-elevated)">
-              <div class="text-xs text-muted">Max Set Volume</div>
-              <div class="font-bold text-accent">${maxSetVol.toLocaleString()} ${unit}</div>
-            </div>
-            <div class="card" style="padding:var(--sp-2);background:var(--bg-elevated)">
-              <div class="text-xs text-muted">Max Reps</div>
-              <div class="font-bold text-accent">${maxReps}</div>
-            </div>
-          </div>
-
-          <!-- Chart selector -->
-          <div class="flex gap-1" style="margin-top:var(--sp-3);flex-wrap:wrap">
-            <button class="btn btn-ghost text-xs chart-metric active" data-metric="e1rm" data-ex="${exId}" style="padding:var(--sp-1) var(--sp-2)">Est. 1RM</button>
-            <button class="btn btn-ghost text-xs chart-metric" data-metric="best" data-ex="${exId}" style="padding:var(--sp-1) var(--sp-2)">Best Set</button>
-            <button class="btn btn-ghost text-xs chart-metric" data-metric="volume" data-ex="${exId}" style="padding:var(--sp-1) var(--sp-2)">Volume</button>
-            <button class="btn btn-ghost text-xs chart-metric" data-metric="reps" data-ex="${exId}" style="padding:var(--sp-1) var(--sp-2)">Max Reps</button>
-          </div>
-          <div class="chart-container" id="chart-${exId}" style="margin-top:var(--sp-2)"></div>
-        </div>
-      </div>`;
-  }).join('')}
-    </div>
-  `;
-
-  // Toggle expand
-  container.addEventListener('click', (e) => {
-    const toggle = e.target.closest('[data-toggle-ex]');
-    if (toggle) {
-      const exId = toggle.dataset.toggleEx;
-      const detail = container.querySelector(`#detail-${exId}`);
-      const chevron = toggle.querySelector('.chevron-icon');
-      if (detail.style.display === 'none') {
-        detail.style.display = '';
-        chevron.style.transform = 'rotate(180deg)';
-        // Render default chart
-        renderExerciseChart(exId, 'e1rm', detail.querySelector(`#chart-${exId}`), exerciseData[exId].sets, workoutDates, unit);
-      } else {
-        detail.style.display = 'none';
-        chevron.style.transform = '';
-      }
-      return;
-    }
-
-    const metricBtn = e.target.closest('.chart-metric');
-    if (metricBtn) {
-      const exId = metricBtn.dataset.ex;
-      const metric = metricBtn.dataset.metric;
-      // Update active
-      metricBtn.closest('.flex').querySelectorAll('.chart-metric').forEach(b => b.classList.toggle('active', b === metricBtn));
-      renderExerciseChart(exId, metric, container.querySelector(`#chart-${exId}`), exerciseData[exId].sets, workoutDates, unit);
-    }
-  });
-}
-
-function renderExerciseChart(exId, metric, chartContainer, allSets, workoutDates, unit) {
-  // Group sets by workout date and pick the best per workout
-  const byWorkout = new Map();
-  for (const s of allSets) {
-    const date = workoutDates.get(s.workoutId) || 'Unknown';
-    if (!byWorkout.has(date)) byWorkout.set(date, []);
-    byWorkout.get(date).push(s);
-  }
-
-  const sortedDates = [...byWorkout.keys()].sort();
-
-  const chartData = sortedDates.map(date => {
-    const wSets = byWorkout.get(date);
-    let value;
-    switch (metric) {
-      case 'e1rm':
-        value = Math.max(...wSets.map(s => estimate1RM(s.weight, s.reps)));
-        break;
-      case 'best':
-        value = Math.max(...wSets.map(s => (s.weight || 0) * (s.reps || 0)));
-        break;
-      case 'volume':
-        value = wSets.reduce((sum, s) => sum + (s.weight || 0) * (s.reps || 0), 0);
-        break;
-      case 'reps':
-        value = Math.max(...wSets.map(s => s.reps || 0));
-        break;
-      default:
-        value = 0;
-    }
-    return { label: date.slice(5), value }; // MM-DD label
-  });
-
-  const labels = { e1rm: `Est. 1RM (${unit})`, best: `Best Set Vol (${unit})`, volume: `Total Volume (${unit})`, reps: 'Max Reps' };
-
-  chartContainer.innerHTML = '';
-  const width = Math.min(chartContainer.offsetWidth || 300, 400);
-  const chart = createLineChart(chartData, { width, height: 160, label: labels[metric] || metric });
-  chartContainer.appendChild(chart);
-}
-
-function estimate1RM(weight, reps) {
-  if (!weight || !reps || reps <= 0) return 0;
-  if (reps === 1) return weight;
-  // Epley formula
-  return weight * (1 + reps / 30);
+      ${sorted.length === 0
+        ? '<div class="text-sm text-muted" style="padding:var(--sp-4);text-align:center">Complete a set to see muscle-group totals.</div>'
+        : `
+          <div class="flex flex-col gap-3" style="margin-top:var(--sp-3)">
+            ${sorted.map(([name, data]) => {
+              const percentage = Math.round((data.sets / maxSets) * 100);
+              return `
+                <div>
+                  <div class="flex items-center justify-between gap-2" style="margin-bottom:var(--sp-1);flex-wrap:wrap">
+                    <span class="text-sm font-medium">${escapeHTML(name)}</span>
+                    <span class="text-xs text-muted">${data.sets} ${data.sets === 1 ? 'set' : 'sets'} • ${formatVolumes(data.volumes, fallbackUnit)}</span>
+                  </div>
+                  <div role="img" aria-label="${escapeHTML(name)}: ${data.sets} completed ${data.sets === 1 ? 'set' : 'sets'}" style="height:8px;background:var(--bg-elevated);border-radius:4px;overflow:hidden">
+                    <div style="height:100%;width:${percentage}%;background:var(--accent);border-radius:4px"></div>
+                  </div>
+                  <div class="text-xs text-muted" style="margin-top:2px">${data.exercises.size} exercise${data.exercises.size !== 1 ? 's' : ''}</div>
+                </div>`;
+            }).join('')}
+          </div>`}
+    </div>`;
 }

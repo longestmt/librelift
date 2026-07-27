@@ -196,6 +196,16 @@ body {
   min-height: 100dvh;
 }
 
+#page-container {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+#page-container:focus {
+  outline: none;
+}
+
 /* ---------- Scrollbar ---------- */
 ::-webkit-scrollbar {
   width: 6px;
@@ -485,9 +495,15 @@ body {
   }
 
   .page {
-    margin-left: var(--sidebar-width);
+    margin-left: auto;
+    margin-right: auto;
     padding-bottom: var(--sp-8);
     max-width: calc(var(--max-content) + var(--sp-8) * 2);
+  }
+
+  #page-container {
+    margin-left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
   }
 }
 
@@ -495,6 +511,17 @@ body {
 @media (max-width: 767px) {
   .nav-brand {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

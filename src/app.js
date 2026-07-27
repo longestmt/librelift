@@ -11,6 +11,7 @@ import { renderExercisesPage } from './pages/exercises.js';
 import { renderPlansPage } from './pages/plans.js';
 import { renderSettingsPage } from './pages/settings.js';
 import { hapticLight } from './utils/haptics.js';
+import { escapeHTML } from './utils/sanitize.js';
 
 const ROUTES = {
   '/workout': { render: renderWorkoutPage, label: 'Workout', icon: 'dumbbell' },
@@ -30,6 +31,7 @@ const ICONS = {
 };
 
 const app = document.getElementById('app');
+let routeSequence = 0;
 
 async function init() {
   // Seed exercises on first run
@@ -63,6 +65,7 @@ function renderShell() {
   const nav = document.createElement('nav');
   nav.className = 'bottom-nav';
   nav.id = 'main-nav';
+  nav.setAttribute('aria-label', 'Primary');
 
   nav.innerHTML = `
     <div class="nav-brand">
@@ -79,8 +82,8 @@ function renderShell() {
       LibreLift
     </div>
     ${Object.entries(ROUTES).map(([path, route]) => `
-      <button class="nav-item" data-route="${path}" id="nav-${route.label.toLowerCase()}">
-        ${ICONS[route.icon]}
+      <button type="button" class="nav-item" data-route="${path}" id="nav-${route.label.toLowerCase()}">
+        <span aria-hidden="true">${ICONS[route.icon]}</span>
         <span>${route.label}</span>
       </button>
     `).join('')}
@@ -98,6 +101,7 @@ function renderShell() {
   // Page container
   const pageContainer = document.createElement('main');
   pageContainer.id = 'page-container';
+  pageContainer.tabIndex = -1;
 
   app.innerHTML = '';
   app.appendChild(nav);
@@ -105,37 +109,47 @@ function renderShell() {
 }
 
 async function handleRoute() {
+  const sequence = ++routeSequence;
   const hash = window.location.hash.slice(1) || '/workout';
-  const route = ROUTES[hash] || ROUTES['/workout'];
+  const requestedPath = hash.split('?')[0];
+  const path = ROUTES[requestedPath] ? requestedPath : '/workout';
+  const route = ROUTES[path];
 
   // Clean up rest timer when leaving workout
   destroyTimer();
 
   // Update nav active state
   document.querySelectorAll('.nav-item').forEach(item => {
-    item.classList.toggle('active', item.dataset.route === hash);
+    const active = item.dataset.route === path;
+    item.classList.toggle('active', active);
+    if (active) item.setAttribute('aria-current', 'page');
+    else item.removeAttribute('aria-current');
   });
+  document.title = `${route.label} — LibreLift`;
 
   // Render page
   const container = document.getElementById('page-container');
-  container.innerHTML = '';
 
   const page = document.createElement('div');
   page.className = 'page';
+  page.setAttribute('aria-busy', 'true');
+  container.replaceChildren(page);
 
   try {
     await route.render(page);
+    if (sequence !== routeSequence) return;
   } catch (err) {
+    if (sequence !== routeSequence) return;
     console.error('Page render error:', err);
     page.innerHTML = `
-      <div class="empty-state">
+      <div class="empty-state" role="alert">
         <div class="empty-state-title">Something went wrong</div>
-        <div class="empty-state-text">${err.message}</div>
+        <div class="empty-state-text">${escapeHTML(err?.message || 'Please try again.')}</div>
       </div>
     `;
   }
-
-  container.appendChild(page);
+  page.removeAttribute('aria-busy');
+  container.focus({ preventScroll: true });
 }
 
 // Kick things off
