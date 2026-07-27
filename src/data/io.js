@@ -3,6 +3,8 @@
  */
 
 import { exportAllData, importAllData } from './db.js';
+import { sanitizeBackupData } from './backup-security.js';
+import { validateBackupData } from './backup-validation.js';
 
 export function downloadJSON(data, filename) {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -20,9 +22,17 @@ export function downloadJSON(data, filename) {
 }
 
 export async function exportData() {
-    const data = await exportAllData();
+    const data = sanitizeBackupData(await exportAllData());
     const date = new Date().toISOString().split('T')[0];
     downloadJSON(data, `librelift-backup-${date}.json`);
+}
+
+export async function exportSafetySnapshot() {
+    const data = sanitizeBackupData(await exportAllData());
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `librelift-before-restore-${timestamp}.json`;
+    downloadJSON(data, filename);
+    return filename;
 }
 
 export function readFileAsJSON(file) {
@@ -38,8 +48,9 @@ export function readFileAsJSON(file) {
 }
 
 export async function importData(file, merge = false) {
-    const data = await readFileAsJSON(file);
-    if (!data.stores) throw new Error('Invalid LibreLift backup file');
+    const data = sanitizeBackupData(await readFileAsJSON(file));
+    validateBackupData(data);
+    if (!merge) await exportSafetySnapshot();
     await importAllData(data, merge);
 }
 

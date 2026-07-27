@@ -10,6 +10,7 @@ function ensureContainer() {
     if (container) return container;
     container = document.createElement('div');
     container.className = 'toast-container';
+    container.setAttribute('aria-label', 'Notifications');
     document.body.appendChild(container);
     return container;
 }
@@ -18,6 +19,8 @@ export function showToast(message, type = 'info', duration = 3000) {
     const c = ensureContainer();
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
+    toast.setAttribute('role', type === 'danger' || type === 'warning' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', type === 'danger' || type === 'warning' ? 'assertive' : 'polite');
     toast.innerHTML = `
     <span>${escapeHTML(String(message))}</span>
   `;
@@ -35,6 +38,8 @@ export function showPRToast(exerciseName, pr, unit) {
     const c = ensureContainer();
     const toast = document.createElement('div');
     toast.className = 'toast toast-pr';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
 
     const safeExerciseName = escapeHTML(String(exerciseName));
     const safeLabel = escapeHTML(String(pr.label));

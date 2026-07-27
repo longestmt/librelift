@@ -3,6 +3,9 @@
  * Pure functions for suggesting weights and calculating plates
  */
 
+import { getByIndex } from '../data/db.js';
+import { estimateOneRepMax } from './progress-metrics.js';
+
 /**
  * Derive a set-type key from a plan exercise config.
  * Examples: "5x5", "3x8-12", "1x5"
@@ -16,8 +19,6 @@ export function deriveSetType(config) {
         ? `${base}-${config.repsMax}`
         : base;
 }
-
-import { getByIndex } from '../data/db.js';
 
 /**
  * Suggest the next weight for an exercise based on plan config and history.
@@ -114,7 +115,14 @@ export async function suggestNextWeight(exerciseId, config, unit = 'lb') {
  * Get sorted exercise history (for charts).
  */
 export async function getExerciseHistory(exerciseId) {
-    const sets = await getByIndex('sets', 'exerciseId', exerciseId);
+    const sets = (await getByIndex('sets', 'exerciseId', exerciseId))
+        .filter(set =>
+            set.completed
+            && Number.isFinite(set.weight)
+            && set.weight >= 0
+            && Number.isFinite(set.reps)
+            && set.reps > 0
+        );
     if (!sets.length) return [];
 
     // Group by workout and get best set per workout
@@ -134,6 +142,7 @@ export async function getExerciseHistory(exerciseId) {
             weight: best.weight || 0,
             reps: best.reps || 0,
             volume: wSets.reduce((sum, s) => sum + (s.weight || 0) * (s.reps || 0), 0),
+            unit: best.unit || null,
             notes
         });
     }
@@ -211,9 +220,9 @@ export async function checkPersonalRecord(exerciseId, weight, reps) {
 
     // Check estimated 1RM PR (only for sets with reps > 1)
     if (reps > 1) {
-        const current1RM = estimate1RM(weight, reps);
+        const current1RM = estimateOneRepMax(weight, reps);
         const prev1RM = completedSets.length > 0
-            ? Math.max(...completedSets.map(s => estimate1RM(s.weight, s.reps)))
+            ? Math.max(...completedSets.map(s => estimateOneRepMax(s.weight, s.reps)))
             : 0;
         if (current1RM > prev1RM && prev1RM > 0 && records.length === 0) {
             records.push({ type: 'e1rm', label: `New Est. 1RM: ${Math.round(current1RM)}`, prev: Math.round(prev1RM) });
@@ -221,12 +230,6 @@ export async function checkPersonalRecord(exerciseId, weight, reps) {
     }
 
     return records.length > 0 ? records[0] : null;
-}
-
-function estimate1RM(weight, reps) {
-    if (!weight || !reps || reps <= 0) return 0;
-    if (reps === 1) return weight;
-    return weight * (1 + reps / 30); // Epley formula
 }
 
 function roundToNearest(value, nearest) {

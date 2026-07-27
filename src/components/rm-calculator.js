@@ -34,16 +34,17 @@ export async function createRMCalculator(initialWeight = 0, initialReps = 0) {
     inputsDiv.style.marginBottom = 'var(--sp-4)';
     inputsDiv.innerHTML = `
         <div class="input-group" style="flex:1">
-            <label class="input-label">Weight (${unit})</label>
-            <input class="input" type="number" id="rm-weight" value="${weight || ''}" placeholder="e.g. 225" inputmode="decimal" />
+            <label class="input-label" for="rm-weight">Weight (${unit})</label>
+            <input class="input" type="number" min="0" step="any" id="rm-weight" value="${weight || ''}" placeholder="e.g. 225" inputmode="decimal" />
         </div>
         <div class="input-group" style="flex:1">
-            <label class="input-label">Reps</label>
-            <input class="input" type="number" id="rm-reps" value="${reps || ''}" placeholder="e.g. 5" inputmode="numeric" />
+            <label class="input-label" for="rm-reps">Reps</label>
+            <input class="input" type="number" min="1" step="1" id="rm-reps" value="${reps || ''}" placeholder="e.g. 5" inputmode="numeric" />
         </div>`;
 
     // Results section (re-rendered on changes)
     const resultsDiv = document.createElement('div');
+    resultsDiv.setAttribute('aria-live', 'polite');
 
     el.appendChild(inputsDiv);
     el.appendChild(resultsDiv);
@@ -55,7 +56,7 @@ export async function createRMCalculator(initialWeight = 0, initialReps = 0) {
         const comparisons = Object.entries(FORMULAS).map(([key, f]) => {
             const est = weight > 0 && reps > 0 ? Math.round(f.calc(weight, reps)) : 0;
             const isActive = key === formula;
-            return `<button class="rm-formula-btn ${isActive ? 'active' : ''}" data-formula="${key}">
+            return `<button type="button" class="rm-formula-btn ${isActive ? 'active' : ''}" aria-pressed="${isActive}" data-formula="${key}">
                 <span class="text-xs">${f.name}</span>
                 <span class="font-bold${isActive ? ' text-accent' : ''}">${est || '\u2014'}</span>
             </button>`;
@@ -79,7 +80,7 @@ export async function createRMCalculator(initialWeight = 0, initialReps = 0) {
                     <div class="font-bold text-accent" style="font-size:var(--text-2xl)">${rounded1RM} ${unit}</div>
                 </div>
                 <div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">Compare formulas</div>
-                <div class="rm-formula-grid">${comparisons}</div>
+                <div class="rm-formula-grid" role="group" aria-label="Estimation formula">${comparisons}</div>
                 <div class="text-xs text-muted" style="margin:var(--sp-4) 0 var(--sp-2)">Rep max table</div>
                 <div class="rm-table">${repTable}</div>`;
         } else {

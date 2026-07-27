@@ -1,10 +1,13 @@
 /**
- * webdav.js — WebDAV Sync for LibreLift
+ * webdav.js — WebDAV backup for LibreLift
  * Saves/restores full app data to a private WebDAV folder (e.g. Nextcloud)
  */
 
 import { exportAllData, importAllData } from './db.js';
 import { getSetting, setSetting } from './db.js';
+import { sanitizeBackupData } from './backup-security.js';
+import { validateBackupData } from './backup-validation.js';
+import { exportSafetySnapshot } from './io.js';
 import { Capacitor } from '@capacitor/core';
 
 /** Get WebDAV Credentials */
@@ -85,13 +88,7 @@ export async function pushToWebDav() {
         throw new Error('WebDAV is not fully configured.');
     }
 
-    const data = await exportAllData();
-    // Exclude the credentials themselves from the backup file
-    if (data.settings) {
-        data.settings = data.settings.filter(s =>
-            !['webdavUrl', 'webdavUsername', 'webdavPassword', 'githubPAT', 'githubGistId'].includes(s.key)
-        );
-    }
+    const data = sanitizeBackupData(await exportAllData());
 
     const jsonStr = JSON.stringify(data, null, 2);
     const targetUrl = `${config.url}librelift_backup.json`;
@@ -125,6 +122,7 @@ export async function pushToWebDav() {
         throw new Error(`WebDAV HTTP Error: ${res.status} ${res.statusText || res.status}`);
     }
 
+    await setSetting('webdavLastBackup', new Date().toISOString());
     return true;
 }
 
@@ -177,29 +175,23 @@ export async function pullFromWebDav() {
         throw new Error(`WebDAV HTTP Error: ${res.status} ${res.statusText || res.status}`);
     }
 
+    let parsedData;
     try {
         // CapacitorHttp parses JSON natively, fetch does not
         const jsonData = (Capacitor.isNativePlatform() && Capacitor.Plugins.CapacitorHttp) ? res.data : await res.json();
 
         // Sometimes CapacitorHttp returns a string if it couldn't parse it
-        const parsedData = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
-
-        // Preserve credentials before import (importAllData wipes all settings)
-        const savedConfig = await getWebDavConfig();
-        const githubPAT = await getSetting('githubPAT', null);
-        const githubGistId = await getSetting('githubGistId', null);
-
-        await importAllData(parsedData);
-
-        // Restore credentials that were stripped from the backup
-        if (savedConfig.url) await setSetting('webdavUrl', savedConfig.url);
-        if (savedConfig.username) await setSetting('webdavUsername', savedConfig.username);
-        if (savedConfig.password) await setSetting('webdavPassword', savedConfig.password);
-        if (githubPAT) await setSetting('githubPAT', githubPAT);
-        if (githubGistId) await setSetting('githubGistId', githubGistId);
-
-        return true;
+        parsedData = sanitizeBackupData(
+            typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
+        );
     } catch (e) {
-        throw new Error('Failed to parse the WebDAV backup file. It may be corrupted.');
+        throw new Error('The WebDAV backup is not valid JSON.');
     }
+
+    // Local data remains authoritative until the remote backup is proven valid.
+    validateBackupData(parsedData);
+    await exportSafetySnapshot();
+    await importAllData(parsedData, false);
+
+    return true;
 }

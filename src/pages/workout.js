@@ -2,27 +2,47 @@
  * workout.js — Active Workout page (hero page)
  */
 
-import { getAll, getById, getByIndex, put, putMany, getSetting, setSetting } from '../data/db.js';
+import { getAll, getById, getByIndex, put, saveCompletedWorkout, getSetting, setSetting, uuid } from '../data/db.js';
 import { suggestNextWeight, getExerciseHistory, deriveSetType, checkPersonalRecord } from '../engine/progression.js';
 import { createTimerElement, startTimer, stopTimer } from '../components/timer.js';
 import { createPlateCalculator } from '../components/plate-calc.js';
 import { createRMCalculator } from '../components/rm-calculator.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast, showPRToast } from '../components/toast.js';
-import { uuid } from '../data/db.js';
-import { saveSession, loadSession, clearSession } from '../data/session.js';
+import { saveSession, loadSessionRecord, clearSession } from '../data/session.js';
 import { hapticLight, hapticMedium, hapticHeavy, hapticSuccess } from '../utils/haptics.js';
 import { escapeHTML } from '../utils/sanitize.js';
 import { formatDuration } from '../utils/format.js';
+import {
+  findFirstInvalidCompletedSet,
+  getWorkoutProgress,
+  hasMeaningfulWorkoutProgress,
+  parseSetInput,
+  validateSetForCompletion,
+} from '../engine/workout-validation.js';
 
 let activeWorkout = null;
 let workoutInterval = null;
 let inactivityTimeout = null;
+let isFinishing = false;
 
 function saveWorkoutProgress() {
   if (!activeWorkout) return;
   saveSession(activeWorkout);
 }
+
+// Draft persistence is the primary recovery mechanism. The native browser
+// warning adds protection for accidental refreshes and tab/app closure.
+window.addEventListener('pagehide', saveWorkoutProgress);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveWorkoutProgress();
+});
+window.addEventListener('beforeunload', (event) => {
+  if (!activeWorkout || isFinishing || !hasMeaningfulWorkoutProgress(activeWorkout)) return;
+  saveWorkoutProgress();
+  event.preventDefault();
+  event.returnValue = '';
+});
 
 function clearInactivityTimer() {
   if (inactivityTimeout) {
@@ -45,6 +65,8 @@ function pauseWorkoutForInactivity(startedAt, timeoutMs) {
   if (clock) {
     updateWorkoutClock(clock, pauseAt);
     clock.style.opacity = '0.5';
+    clock.setAttribute('aria-pressed', 'true');
+    clock.setAttribute('aria-label', 'Resume workout timer');
   }
   showToast('Workout auto-paused due to inactivity', 'info');
 }
@@ -109,6 +131,8 @@ function resumeWorkout(autoPauseMin) {
   if (clock) {
     updateWorkoutClock(clock);
     clock.style.opacity = '1';
+    clock.setAttribute('aria-pressed', 'false');
+    clock.setAttribute('aria-label', 'Pause workout timer');
   }
 
   if (workoutInterval) clearInterval(workoutInterval);
@@ -121,11 +145,16 @@ export async function renderWorkoutPage(container) {
   const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
   const planId = params.get('planId');
 
-  // Restore a saved session if the in-memory state was lost (e.g. app was closed)
+  // A recovered session requires an explicit choice. In-memory navigation
+  // during the current app session resumes immediately and never loses edits.
   if (!activeWorkout) {
-    const saved = loadSession();
-    if (saved) {
-      activeWorkout = saved;
+    const saved = loadSessionRecord();
+    if (saved?.workout) {
+      if (hasMeaningfulWorkoutProgress(saved.workout)) {
+        renderWorkoutRecovery(container, unit, saved);
+        return;
+      }
+      clearSession();
     }
   }
 
@@ -144,15 +173,15 @@ export async function renderWorkoutPage(container) {
   const renderPlanButton = (plan, prominent) => {
     const nextDay = plan.days?.[plan.currentDayIndex || 0];
     if (prominent) {
-      return `<button class="card card-clickable" data-start-plan="${plan.id}" style="text-align:left;border:1px solid var(--accent);font-family:var(--font-sans);width:100%;cursor:pointer">
-          <div class="card-header"><div><div class="card-title" style="font-size:var(--text-lg)">${plan.name}</div>
-          ${nextDay ? `<div class="text-sm text-accent" style="margin-top:4px">Next: ${nextDay.name}</div>` : ''}
-          </div><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></button>`;
+      return `<button type="button" class="card card-clickable" data-start-plan="${escapeHTML(plan.id)}" style="text-align:left;border:1px solid var(--accent);font-family:var(--font-sans);width:100%;cursor:pointer">
+          <div class="card-header"><div><div class="card-title" style="font-size:var(--text-lg)">${escapeHTML(plan.name)}</div>
+          ${nextDay ? `<div class="text-sm text-accent" style="margin-top:4px">Next: ${escapeHTML(nextDay.name)}</div>` : ''}
+          </div><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></button>`;
     }
-    return `<button class="card card-clickable" data-start-plan="${plan.id}" style="text-align:left;border:none;font-family:var(--font-sans);width:100%;cursor:pointer;padding:var(--sp-2) var(--sp-3);opacity:0.85">
-          <div class="card-header"><div><div class="card-title text-sm">${plan.name}</div>
-          ${nextDay ? `<div class="text-xs text-muted">Next: ${nextDay.name}</div>` : ''}
-          </div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></button>`;
+    return `<button type="button" class="card card-clickable" data-start-plan="${escapeHTML(plan.id)}" style="text-align:left;border:none;font-family:var(--font-sans);width:100%;cursor:pointer;padding:var(--sp-2) var(--sp-3);opacity:0.85">
+          <div class="card-header"><div><div class="card-title text-sm">${escapeHTML(plan.name)}</div>
+          ${nextDay ? `<div class="text-xs text-muted">Next: ${escapeHTML(nextDay.name)}</div>` : ''}
+          </div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></button>`;
   };
 
   container.innerHTML = `
@@ -219,6 +248,60 @@ export async function renderWorkoutPage(container) {
   }
 }
 
+function renderWorkoutRecovery(container, unit, savedSession) {
+  const workout = savedSession.workout;
+  const progress = getWorkoutProgress(workout);
+  const savedDate = savedSession.savedAt ? new Date(savedSession.savedAt) : null;
+  const savedLabel = savedDate && !Number.isNaN(savedDate.getTime())
+    ? `Saved ${savedDate.toLocaleString()}`
+    : 'Saved during your previous session';
+  const progressLabel = progress.total > 0
+    ? `${progress.completed} of ${progress.total} sets completed`
+    : 'No sets completed yet';
+
+  container.innerHTML = `
+    <div class="page-header" style="text-align:center;padding-top:var(--sp-8)">
+      <h1 class="page-title">Resume Workout?</h1>
+      <p class="page-subtitle">Your local draft is safe.</p>
+    </div>
+    <div class="card" style="max-width:440px;margin:var(--sp-6) auto 0">
+      <div class="card-title">${escapeHTML(workout.dayName || 'Workout')}</div>
+      ${workout.planName ? `<div class="text-sm text-secondary" style="margin-top:var(--sp-1)">${escapeHTML(workout.planName)}</div>` : ''}
+      <div class="text-sm text-muted" style="margin-top:var(--sp-3)">${progressLabel}</div>
+      <div class="text-xs text-muted" style="margin-top:var(--sp-1)">${escapeHTML(savedLabel)}</div>
+      <div class="flex flex-col gap-2" style="margin-top:var(--sp-4)">
+        <button class="btn btn-primary btn-full" id="resume-workout-btn">Resume Workout</button>
+        <button class="btn btn-ghost btn-full text-danger" id="discard-workout-btn">Discard Draft</button>
+      </div>
+    </div>`;
+
+  container.querySelector('#resume-workout-btn').addEventListener('click', async () => {
+    activeWorkout = workout;
+    saveSession(activeWorkout); // Upgrade legacy session records on resume.
+    await renderActiveWorkout(container, unit);
+  });
+
+  container.querySelector('#discard-workout-btn').addEventListener('click', async () => {
+    await revertPlanDayForDraft(workout);
+    clearSession();
+    activeWorkout = null;
+    if (window.location.hash !== '#/workout') {
+      window.location.hash = '/workout';
+    } else {
+      await renderWorkoutPage(container);
+    }
+    showToast('Workout draft discarded', 'info');
+  });
+}
+
+async function revertPlanDayForDraft(workout) {
+  if (!workout?.planId) return;
+  const plan = await getById('plans', workout.planId);
+  if (!plan) return;
+  plan.currentDayIndex = workout.dayIndex;
+  await put('plans', plan);
+}
+
 function getLastWorkoutSets(allSets) {
   if (!allSets.length) return null;
   const map = new Map();
@@ -263,17 +346,17 @@ async function renderActiveWorkout(container, unit) {
   const autoPauseMin = await getSetting('autoPauseMin', 15);
 
   container.innerHTML = `
-    <div class="flex items-center justify-between" style="margin-bottom:var(--sp-4)">
-      <div><h1 class="page-title" style="font-size:var(--text-xl)">${activeWorkout.dayName || 'Workout'}</h1>
-      ${activeWorkout.planName ? `<div class="text-xs text-muted">${activeWorkout.planName}</div>` : ''}</div>
-      <div class="flex items-center gap-2">
-        <button id="workout-clock" class="btn btn-ghost font-mono text-sm text-accent" style="min-width:50px;padding:var(--sp-2) var(--sp-3)" title="Tap to pause/resume">0:00</button>
-        <button class="btn btn-ghost text-sm" id="cancel-workout-btn" style="padding:var(--sp-2) var(--sp-3);color:var(--text-muted)">Cancel</button>
-        <button class="btn btn-danger" id="finish-workout-btn" style="padding:var(--sp-2) var(--sp-4)">Finish</button>
+    <div class="flex items-center justify-between workout-header gap-2" style="margin-bottom:var(--sp-4)">
+      <div><h1 class="page-title" style="font-size:var(--text-xl)">${escapeHTML(activeWorkout.dayName || 'Workout')}</h1>
+      ${activeWorkout.planName ? `<div class="text-xs text-muted">${escapeHTML(activeWorkout.planName)}</div>` : ''}</div>
+      <div class="flex items-center gap-2 workout-header-actions">
+        <button type="button" id="workout-clock" class="btn btn-ghost font-mono text-sm text-accent" aria-label="Pause workout timer" aria-pressed="false" style="min-width:50px;padding:var(--sp-2) var(--sp-3)">0:00</button>
+        <button type="button" class="btn btn-ghost text-sm" id="cancel-workout-btn" style="padding:var(--sp-2) var(--sp-3);color:var(--text-muted)">Cancel</button>
+        <button type="button" class="btn btn-danger" id="finish-workout-btn" style="padding:var(--sp-2) var(--sp-4)">Finish</button>
       </div>
     </div>
     <div id="workout-exercises" class="flex flex-col gap-4"></div>
-    <div style="margin-top:var(--sp-4)"><div class="input-group"><label class="input-label">Gym Notes</label>
+    <div style="margin-top:var(--sp-4)"><div class="input-group"><label class="input-label" for="workout-notes">Gym Notes</label>
       <textarea class="input" id="workout-notes" rows="2" placeholder="How's the session going?">${escapeHTML(activeWorkout.notes)}</textarea></div></div>
     <div style="margin-top:var(--sp-4)"><button class="btn btn-secondary btn-full" id="add-exercise-btn">+ Add Exercise</button></div>`;
 
@@ -293,6 +376,8 @@ async function renderActiveWorkout(container, unit) {
     clockEl.style.opacity = '0.5';
     const pausedElapsed = Math.floor((activeWorkout.pausedAt - activeWorkout.startTime) / 1000);
     clockEl.textContent = `${Math.floor(pausedElapsed / 60)}:${(pausedElapsed % 60).toString().padStart(2, '0')}`;
+    clockEl.setAttribute('aria-pressed', 'true');
+    clockEl.setAttribute('aria-label', 'Resume workout timer');
   } else {
     updateWorkoutClock(clockEl);
     workoutInterval = setInterval(() => updateWorkoutClock(clockEl), 1000);
@@ -308,6 +393,8 @@ async function renderActiveWorkout(container, unit) {
       saveSession(activeWorkout);
       clearInactivityTimer();
       clockEl.style.opacity = '0.5';
+      clockEl.setAttribute('aria-pressed', 'true');
+      clockEl.setAttribute('aria-label', 'Resume workout timer');
       if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
     }
   });
@@ -341,17 +428,19 @@ function renderExerciseCard(ex, ei, unit) {
   const reasonBadge = ex.suggestionReason === 'increment' ? '<span class="badge badge-success">↑ Up</span>' : ex.suggestionReason === 'deload' ? '<span class="badge badge-danger">↓ Deload</span>' : '';
 
   return `<div class="card" data-ei="${ei}" style="${ex.supersetGroup ? 'border:none;box-shadow:none;background:transparent;padding:0' : ''}">
-      <div class="card-header" style="cursor:pointer" data-toggle="${ei}">
-        <div><div class="card-title">${ex.exerciseName}</div><div class="flex gap-2" style="margin-top:2px">${reasonBadge}<span class="prev-hint">${prevText}</span></div></div>
-        <div class="flex items-center gap-1">
-          <button class="btn btn-ghost btn-icon" data-show-history="${ei}" title="History" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
-          <button class="btn btn-ghost btn-icon" data-swap-ex="${ei}" title="Swap exercise" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></button>
-          <button class="btn btn-ghost btn-icon" data-show-rm="${ei}" title="1RM Calculator" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="3"/></svg></button>
-          <button class="btn btn-ghost btn-icon" data-show-plates="${ei}" title="Plates" style="width:32px;height:32px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><line x1="6" y1="12" x2="18" y2="12"/></svg></button>
+      <div class="card-header exercise-card-header gap-2">
+        <button type="button" data-toggle="${ei}" aria-expanded="${!ex.collapsed}" style="border:0;background:none;color:inherit;text-align:left;font:inherit;padding:0;cursor:pointer;flex:1;min-width:0">
+          <div class="card-title">${escapeHTML(ex.exerciseName)}</div><div class="flex gap-2" style="margin-top:2px">${reasonBadge}<span class="prev-hint">${escapeHTML(prevText)}</span></div>
+        </button>
+        <div class="flex items-center gap-1 exercise-card-actions">
+          <button type="button" class="btn btn-ghost btn-icon" data-show-history="${ei}" aria-label="History for ${escapeHTML(ex.exerciseName)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+          <button type="button" class="btn btn-ghost btn-icon" data-swap-ex="${ei}" aria-label="Swap ${escapeHTML(ex.exerciseName)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></button>
+          <button type="button" class="btn btn-ghost btn-icon" data-show-rm="${ei}" aria-label="1RM calculator for ${escapeHTML(ex.exerciseName)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button type="button" class="btn btn-ghost btn-icon" data-show-plates="${ei}" aria-label="Plate calculator for ${escapeHTML(ex.exerciseName)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><line x1="6" y1="12" x2="18" y2="12"/></svg></button>
         </div>
       </div>
       <div class="exercise-body" style="${ex.collapsed ? 'display:none' : ''}">
-        <div style="display:grid;grid-template-columns:36px 1fr 1fr 56px 36px;gap:var(--sp-2);align-items:center;padding:var(--sp-1) 0;color:var(--text-muted);font-size:var(--text-xs);font-weight:500"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS${ex.config?.repsMax && ex.config.repsMax !== ex.config.reps ? ` (${ex.config.reps}–${ex.config.repsMax})` : ''}</span><span style="text-align:center">RPE</span><span style="text-align:center">✓</span></div>
+        <div class="set-grid-header" aria-hidden="true"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS${ex.config?.repsMax && ex.config.repsMax !== ex.config.reps ? ` (${ex.config.reps}–${ex.config.repsMax})` : ''}</span><span style="text-align:center">RPE</span><span style="text-align:center">✓</span></div>
         ${ex.sets.map((set, si) => renderSetRow(set, si, ei)).join('')}
         <div class="flex gap-2" style="margin-top:var(--sp-2)"><button class="btn btn-ghost text-sm" data-add-set="${ei}" style="flex:1">+ Set</button>${ex.sets.length > 1 ? `<button class="btn btn-ghost text-sm text-danger" data-remove-set="${ei}">− Set</button>` : ''}<button class="btn btn-ghost text-sm" data-ex-note="${ei}" title="Note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button></div>
         ${ex.notes ? `<div class="text-xs text-muted" style="margin-top:var(--sp-1);padding:var(--sp-1) var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic">${escapeHTML(ex.notes)}</div>` : ''}
@@ -414,12 +503,15 @@ function renderSetRow(set, si, ei) {
   const locked = set.completed ? 'readonly' : '';
   const lockedCls = set.completed ? 'locked' : '';
   const isPressed = set.completed ? 'true' : 'false';
+  const weightValue = Number.isFinite(set.weight) ? set.weight : '';
+  const repsValue = Number.isFinite(set.reps) ? set.reps : '';
+  const rpeValue = Number.isFinite(set.rpe) ? set.rpe : '';
   return `<div class="set-row">
     <span class="set-number" aria-hidden="true">${set.setNumber}</span>
-    <input class="input-inline ${lockedCls}" type="number" aria-label="Weight for set ${set.setNumber}" value="${set.weight}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal" ${locked}/>
-    <input class="input-inline ${lockedCls}" type="number" aria-label="Reps for set ${set.setNumber}" value="${set.reps}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric" ${locked}/>
-    <input class="input-inline ${lockedCls}" type="number" aria-label="RPE for set ${set.setNumber}" value="${set.rpe || ''}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—" ${locked}/>
-    <button class="set-check ${cls}" aria-label="Mark set ${set.setNumber} complete" aria-pressed="${isPressed}" data-ei="${ei}" data-si="${si}">${icon}</button>
+    <input class="input-inline ${lockedCls}" type="number" min="0" step="any" aria-label="Weight for set ${set.setNumber}" value="${weightValue}" data-ei="${ei}" data-si="${si}" data-field="weight" inputmode="decimal" ${locked}/>
+    <input class="input-inline ${lockedCls}" type="number" min="1" step="1" aria-label="Reps for set ${set.setNumber}" value="${repsValue}" data-ei="${ei}" data-si="${si}" data-field="reps" inputmode="numeric" ${locked}/>
+    <input class="input-inline ${lockedCls}" type="number" min="1" max="10" step="0.5" aria-label="RPE for set ${set.setNumber}" value="${rpeValue}" data-ei="${ei}" data-si="${si}" data-field="rpe" inputmode="decimal" placeholder="—" ${locked}/>
+    <button type="button" class="set-check ${cls}" aria-label="Mark set ${set.setNumber} ${set.completed ? 'incomplete' : 'complete'}" aria-pressed="${isPressed}" data-ei="${ei}" data-si="${si}">${icon}</button>
   </div>`;
 }
 
@@ -516,6 +608,19 @@ function setupWorkoutEvents(container, unit, autoPauseMin) {
       const set = ex.sets[si];
       // Simple toggle: tap = done, tap again = undo
       if (!set.completed) {
+        const validation = validateSetForCompletion(set);
+        if (!validation.valid) {
+          const invalidInput = container.querySelector(
+            `.input-inline[data-ei="${ei}"][data-si="${si}"][data-field="${validation.field}"]`
+          );
+          if (invalidInput) {
+            invalidInput.setAttribute('aria-invalid', 'true');
+            invalidInput.focus();
+          }
+          showToast(validation.message, 'danger');
+          return;
+        }
+
         set.completed = true;
 
         // Propagate weight to subsequent uncompleted sets with the old suggested weight
@@ -575,7 +680,7 @@ function setupWorkoutEvents(container, unit, autoPauseMin) {
       const ei = parseInt(noteBtn.dataset.exNote);
       const ex = activeWorkout.exercises[ei];
       const body = openModal('', { title: `Note — ${ex.exerciseName}` });
-      body.innerHTML = `<textarea class="input" id="ex-note-input" rows="3" placeholder="How does this feel? Any cues?">${escapeHTML(ex.notes) || ''}</textarea>
+      body.innerHTML = `<label class="input-label" for="ex-note-input">Exercise note</label><textarea class="input" id="ex-note-input" rows="3" autofocus placeholder="How does this feel? Any cues?">${escapeHTML(ex.notes) || ''}</textarea>
               <button class="btn btn-primary btn-full" id="save-note-btn" style="margin-top:var(--sp-3)">Save</button>`;
       body.querySelector('#save-note-btn').addEventListener('click', () => {
         ex.notes = body.querySelector('#ex-note-input').value;
@@ -591,8 +696,8 @@ function setupWorkoutEvents(container, unit, autoPauseMin) {
     const input = e.target.closest('.input-inline');
     if (!input) return;
     const ei = parseInt(input.dataset.ei), si = parseInt(input.dataset.si), field = input.dataset.field;
-    const val = parseFloat(input.value) || 0;
-    activeWorkout.exercises[ei].sets[si][field] = val;
+    activeWorkout.exercises[ei].sets[si][field] = parseSetInput(field, input.value);
+    input.removeAttribute('aria-invalid');
     saveWorkoutProgress();
   });
 }
@@ -603,8 +708,55 @@ function updateWorkoutClock(el, now = Date.now()) {
   el.textContent = `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
-async function finishWorkout(container, unit) {
+async function finishWorkout(container, unit, incompleteConfirmed = false) {
   if (!activeWorkout) return;
+
+  const invalidCompletedSet = findFirstInvalidCompletedSet(activeWorkout);
+  if (invalidCompletedSet) {
+    const { exerciseIndex, setIndex, field, message } = invalidCompletedSet;
+    activeWorkout.exercises[exerciseIndex].sets[setIndex].completed = false;
+    activeWorkout.exercises[exerciseIndex].collapsed = false;
+    saveWorkoutProgress();
+
+    const exerciseContainer = container.querySelector('#workout-exercises');
+    renderWorkoutExercises(exerciseContainer, unit);
+    const invalidInput = exerciseContainer.querySelector(
+      `.input-inline[data-ei="${exerciseIndex}"][data-si="${setIndex}"][data-field="${field}"]`
+    );
+    if (invalidInput) {
+      invalidInput.setAttribute('aria-invalid', 'true');
+      invalidInput.focus();
+    }
+    showToast(message, 'danger');
+    return;
+  }
+
+  const progress = getWorkoutProgress(activeWorkout);
+  if ((progress.total === 0 || progress.incomplete > 0) && !incompleteConfirmed) {
+    const body = openModal('', { title: 'Finish Workout?' });
+    const completedText = progress.total > 0
+      ? `${progress.completed} of ${progress.total} sets are complete.`
+      : 'This workout has no sets.';
+    const warningText = progress.total > 0
+      ? `${completedText} Incomplete sets will remain visible in your history.`
+      : `${completedText} You can review it or save the empty workout.`;
+    const saveLabel = progress.total > 0
+      ? `Save with ${progress.incomplete} incomplete`
+      : 'Save Empty Workout';
+
+    body.innerHTML = `
+      <p class="text-secondary" style="margin-bottom:var(--sp-4)">${warningText}</p>
+      <div class="flex flex-col gap-2">
+        <button class="btn btn-secondary btn-full" id="finish-review">Review Workout</button>
+        <button class="btn btn-danger btn-full" id="finish-incomplete">${saveLabel}</button>
+      </div>`;
+    body.querySelector('#finish-review').addEventListener('click', () => closeModal());
+    body.querySelector('#finish-incomplete').addEventListener('click', () => {
+      closeModal();
+      finishWorkout(container, unit, true);
+    });
+    return;
+  }
 
   const endTime = activeWorkout.pausedAt || Date.now();
   const dur = Math.floor((endTime - activeWorkout.startTime) / 1000);
@@ -627,7 +779,7 @@ async function finishWorkout(container, unit) {
         <button class="btn btn-secondary btn-full" id="dur-keep">Yes, save as-is</button>
         ${hasActivity ? `<button class="btn btn-full" id="dur-activity" style="background:var(--bg-elevated);color:var(--text)">Use last activity time (${activityMin}m)</button>` : ''}
         <div class="flex items-center gap-2" style="margin-top:var(--sp-2)">
-          <input class="input" type="number" id="dur-manual-input" placeholder="Minutes" inputmode="numeric" style="flex:1" />
+          <input class="input" type="number" min="1" step="1" id="dur-manual-input" aria-label="Workout duration in minutes" placeholder="Minutes" inputmode="numeric" style="flex:1" />
           <button class="btn btn-primary" id="dur-manual-save">Save</button>
         </div>
       </div>`;
@@ -649,36 +801,55 @@ async function finishWorkout(container, unit) {
 }
 
 async function commitFinish(container, unit, dur) {
-  hapticSuccess();
-  clearSession();
-  clearInactivityTimer();
+  if (!activeWorkout || isFinishing) return;
+
+  const finishingWorkout = activeWorkout;
+  const finishButton = container.querySelector('#finish-workout-btn');
+  isFinishing = true;
+  if (finishButton) {
+    finishButton.disabled = true;
+    finishButton.textContent = 'Saving…';
+  }
 
   try {
-    if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
-
-    // Clean up timer bar from body
-    const timerBar = document.querySelector('.rest-timer-bar');
-    if (timerBar) timerBar.remove();
-    stopTimer();
-
-    const w = await put('workouts', { id: activeWorkout.id, date: new Date().toISOString().split('T')[0], planId: activeWorkout.planId, planName: activeWorkout.planName, dayName: activeWorkout.dayName, notes: activeWorkout.notes, durationSec: dur, exerciseCount: activeWorkout.exercises.length });
-
     const allSets = [];
-    for (const ex of activeWorkout.exercises) {
+    for (const ex of finishingWorkout.exercises) {
       const setType = deriveSetType(ex.config);
-      for (const s of ex.sets) allSets.push({ id: s.id, workoutId: w.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed, notes: ex.notes, setType });
+      for (const s of ex.sets) allSets.push({ id: s.id, workoutId: finishingWorkout.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed, notes: ex.notes, setType, unit });
     }
-    if (allSets.length > 0) await putMany('sets', allSets);
-
-    const vol = allSets.reduce((s, r) => s + (r.completed ? r.weight * r.reps : 0), 0);
-    const done = allSets.filter(s => s.completed).length;
-    const durStr = formatDuration(dur);
 
     // Get last bodyweight for pre-fill
     const bwEntries = await getAll('bodyWeight');
     const lastBW = bwEntries.sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
 
-    container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${activeWorkout.dayName}</p></div>
+    const { workout: savedWorkout, sets: savedSets } = await saveCompletedWorkout({
+      id: finishingWorkout.id,
+      date: new Date().toISOString().split('T')[0],
+      planId: finishingWorkout.planId,
+      planName: finishingWorkout.planName,
+      dayName: finishingWorkout.dayName,
+      notes: finishingWorkout.notes,
+      durationSec: dur,
+      exerciseCount: finishingWorkout.exercises.length,
+      unit,
+    }, allSets);
+
+    clearSession();
+    clearInactivityTimer();
+    if (workoutInterval) { clearInterval(workoutInterval); workoutInterval = null; }
+    const timerBar = document.querySelector('.rest-timer-bar');
+    if (timerBar) timerBar.remove();
+    stopTimer();
+    hapticSuccess();
+
+    const vol = savedSets.reduce((sum, record) =>
+      sum + (record.completed ? record.weight * record.reps : 0), 0);
+    const done = savedSets.filter(record => record.completed).length;
+    const durStr = formatDuration(savedWorkout.durationSec);
+    activeWorkout = null;
+    isFinishing = false;
+
+    container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${escapeHTML(finishingWorkout.dayName || 'Workout')}</p></div>
         <div class="card" style="margin-top:var(--sp-6)"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);text-align:center"><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${durStr}</div><div class="text-xs text-muted">Duration</div></div><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${vol.toLocaleString()}</div><div class="text-xs text-muted">Volume</div></div><div><div class="font-bold text-success" style="font-size:var(--text-xl)">${done}/${allSets.length}</div><div class="text-xs text-muted">Sets</div></div></div></div>
         <div class="card" style="margin-top:var(--sp-3);padding:var(--sp-3)">
           <div class="flex items-center gap-3">
@@ -686,7 +857,7 @@ async function commitFinish(container, unit, dur) {
             <div style="flex:1">
               <div class="text-xs text-muted" style="margin-bottom:2px">Bodyweight (optional)</div>
               <div class="flex items-center gap-2">
-                <input class="input" type="number" step="0.1" id="bw-input" placeholder="${lastBW ? lastBW.value : 'e.g. 185'}" value="${lastBW ? lastBW.value : ''}" style="width:100px" />
+                <input class="input" type="number" min="0" step="0.1" id="bw-input" aria-label="Bodyweight in ${escapeHTML(unit)}" placeholder="${lastBW ? lastBW.value : 'e.g. 185'}" value="${lastBW ? lastBW.value : ''}" style="width:100px" />
                 <span class="text-sm text-muted">${unit}</span>
               </div>
             </div>
@@ -699,39 +870,39 @@ async function commitFinish(container, unit, dur) {
       if (bwVal && bwVal > 0) {
         await put('bodyWeight', { date: new Date().toISOString().split('T')[0], value: bwVal, unit });
       }
-      activeWorkout = null;
       window.location.hash = '/data';
     });
     showToast('Workout saved! 💪', 'success');
   } catch (err) {
+    activeWorkout = finishingWorkout;
+    saveSession(activeWorkout);
+    isFinishing = false;
+    if (finishButton) {
+      finishButton.disabled = false;
+      finishButton.textContent = 'Finish';
+    }
     console.error('Error finishing workout:', err);
-    showToast('Error saving workout: ' + err.message, 'danger');
+    showToast('Could not save workout. Your draft is still safe. ' + err.message, 'danger');
   }
 }
 
 async function cancelWorkout(container, unit) {
   const body = openModal('', { title: 'Stop Workout?' });
   const hasPlan = !!activeWorkout?.planId;
-  body.innerHTML = `<p class="text-secondary" style="margin-bottom:var(--sp-4)">Any logged sets will not be saved.</p>
+  body.innerHTML = `<p class="text-secondary" style="margin-bottom:var(--sp-4)">Discarding removes this local draft and any sets logged in it.</p>
       <div class="flex flex-col gap-2">
         <button class="btn btn-secondary btn-full" id="cancel-keep">Keep Going</button>
-        <button class="btn btn-full" id="cancel-cancel" style="background:var(--bg-elevated);color:var(--text)">Cancel — Restart This Workout Later</button>
-        ${hasPlan ? '<button class="btn btn-danger btn-full" id="cancel-skip">Skip — Move to Next Workout</button>' : ''}
+        <button class="btn btn-danger btn-full" id="cancel-cancel">${hasPlan ? 'Discard Draft — Repeat This Day' : 'Discard Draft'}</button>
+        ${hasPlan ? '<button class="btn btn-ghost btn-full" id="cancel-skip">Discard and Skip This Day</button>' : ''}
       </div>`;
   body.querySelector('#cancel-keep').addEventListener('click', () => closeModal());
 
   // Cancel: revert day index so user gets the same workout again
   body.querySelector('#cancel-cancel').addEventListener('click', async () => {
     closeModal();
-    if (activeWorkout.planId) {
-      const plan = await getById('plans', activeWorkout.planId);
-      if (plan) {
-        plan.currentDayIndex = activeWorkout.dayIndex;
-        await put('plans', plan);
-      }
-    }
+    await revertPlanDayForDraft(activeWorkout);
     cleanupWorkout();
-    showToast('Workout cancelled — you\'ll get this one next time', 'info');
+    showToast(hasPlan ? 'Draft discarded — this day will repeat' : 'Workout draft discarded', 'info');
   });
 
   // Skip: keep day index advanced (already done at start)
@@ -739,7 +910,7 @@ async function cancelWorkout(container, unit) {
     body.querySelector('#cancel-skip').addEventListener('click', () => {
       closeModal();
       cleanupWorkout();
-      showToast('Workout skipped — moving to next day', 'info');
+      showToast('Draft discarded — moving to the next day', 'info');
     });
   }
 }
@@ -757,7 +928,7 @@ function cleanupWorkout() {
 
 async function showExercisePicker(exercises, exContainer, unit) {
   const body = openModal('', { title: 'Add Exercise' });
-  body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="add-ex-search" placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button class="list-item" data-id="${ex.id}" data-name="${ex.name}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.muscleGroup} • ${ex.equipment}</div></span></button>`).join('')}</div>`;
+  body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" type="search" id="add-ex-search" aria-label="Search exercises" autofocus placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button type="button" class="list-item" data-id="${escapeHTML(ex.id)}" data-name="${escapeHTML(ex.name)}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${escapeHTML(ex.name)}</div><div class="text-xs text-muted">${escapeHTML(ex.muscleGroup)} • ${escapeHTML(ex.equipment)}</div></span></button>`).join('')}</div>`;
 
   body.querySelector('#add-ex-search').addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase();
@@ -787,15 +958,15 @@ async function showSwapPicker(ei, exContainer, unit) {
 
   const body = openModal('', { title: `Swap ${currentEx.exerciseName}` });
   body.innerHTML = `
-    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${muscleGroup} exercises • ${alternatives.length} alternatives</div>
-    <div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="swap-search" placeholder="Search..."/></div>
+    <div class="text-xs text-muted" style="margin-bottom:var(--sp-3)">${escapeHTML(muscleGroup)} exercises • ${alternatives.length} alternatives</div>
+    <div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" type="search" id="swap-search" aria-label="Search alternative exercises" autofocus placeholder="Search..."/></div>
     <div id="swap-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">
       ${alternatives.map(ex => `
         <div class="list-item" style="flex-direction:column;align-items:stretch;gap:var(--sp-2);padding:var(--sp-3)">
-          <div><div class="text-sm font-medium">${ex.name}</div><div class="text-xs text-muted">${ex.equipment}</div></div>
+          <div><div class="text-sm font-medium">${escapeHTML(ex.name)}</div><div class="text-xs text-muted">${escapeHTML(ex.equipment)}</div></div>
           <div class="flex gap-2">
-            <button class="btn btn-secondary text-xs" data-swap-id="${ex.id}" data-swap-name="${ex.name}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
-            ${activeWorkout.planId ? `<button class="btn btn-primary text-xs" data-swap-id="${ex.id}" data-swap-name="${ex.name}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
+            <button type="button" class="btn btn-secondary text-xs" data-swap-id="${escapeHTML(ex.id)}" data-swap-name="${escapeHTML(ex.name)}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
+            ${activeWorkout.planId ? `<button type="button" class="btn btn-primary text-xs" data-swap-id="${escapeHTML(ex.id)}" data-swap-name="${escapeHTML(ex.name)}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
           </div>
         </div>
       `).join('')}
@@ -876,12 +1047,12 @@ async function showExerciseHistoryModal(ei, unit) {
         <div class="card" style="padding:var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-2)">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div>
-              <div class="font-bold">${h.weight}${unit} × ${h.reps}</div>
+              <div class="font-bold">${h.weight} ${escapeHTML(h.unit || unit)} × ${h.reps}</div>
               <div class="text-xs text-muted" style="margin-top:2px">${fmtDate(h.date)}</div>
             </div>
             <div style="text-align:right">
               <div class="text-xs text-muted">Volume</div>
-              <div class="font-medium" style="color:var(--accent)">${h.volume >= 1000 ? `${(h.volume / 1000).toFixed(1)}k` : h.volume}</div>
+              <div class="font-medium" style="color:var(--accent)">${h.volume >= 1000 ? `${(h.volume / 1000).toFixed(1)}k` : h.volume} ${escapeHTML(h.unit || unit)}</div>
             </div>
           </div>
           ${h.notes ? `<div class="text-sm text-muted" style="padding:var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic;margin-top:4px">${escapeHTML(h.notes)}</div>` : ''}

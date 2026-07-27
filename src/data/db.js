@@ -3,8 +3,15 @@
  * Every record: id (UUID), createdAt, updatedAt, deleted (soft-delete)
  */
 
+import {
+    BACKUP_STORE_NAMES,
+    CURRENT_BACKUP_VERSION,
+    validateBackupData,
+} from './backup-validation.js';
+import { PRIVATE_SETTING_KEYS, sanitizeBackupData } from './backup-security.js';
+
 const DB_NAME = 'librelift';
-const DB_VERSION = 2;
+const DB_VERSION = CURRENT_BACKUP_VERSION;
 
 let dbInstance = null;
 
@@ -147,6 +154,71 @@ export async function putMany(storeName, items) {
     });
 }
 
+/**
+ * Save a completed workout and all of its sets in one transaction.
+ * If any write fails, IndexedDB rolls the entire transaction back.
+ */
+export async function saveCompletedWorkout(workout, sets) {
+    if (!workout || typeof workout !== 'object' || Array.isArray(workout)) {
+        throw new Error('A workout record is required.');
+    }
+    if (!Array.isArray(sets)) {
+        throw new Error('Workout sets must be a list.');
+    }
+
+    const timestamp = now();
+    const workoutId = workout.id || uuid();
+    const workoutRecord = {
+        ...workout,
+        id: workoutId,
+        createdAt: workout.createdAt || timestamp,
+        updatedAt: timestamp,
+        deleted: false,
+    };
+
+    const seenSetIds = new Set();
+    const setRecords = sets.map(set => {
+        if (!set || typeof set !== 'object' || Array.isArray(set)) {
+            throw new Error('Every workout set must be a record.');
+        }
+
+        const id = set.id || uuid();
+        if (seenSetIds.has(id)) {
+            throw new Error(`Workout contains duplicate set id "${id}".`);
+        }
+        seenSetIds.add(id);
+
+        return {
+            ...set,
+            id,
+            workoutId,
+            createdAt: set.createdAt || timestamp,
+            updatedAt: timestamp,
+            deleted: false,
+        };
+    });
+
+    const db = await openDB();
+    const tx = db.transaction(['workouts', 'sets'], 'readwrite');
+    tx.objectStore('workouts').put(workoutRecord);
+    for (const setRecord of setRecords) {
+        tx.objectStore('sets').put(setRecord);
+    }
+
+    await new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onabort = () => reject(
+            tx.error || new Error('The database rejected the workout transaction.')
+        );
+    }).catch(error => {
+        throw new Error(
+            `Workout could not be saved. Your active draft is still available. ${error.message}`
+        );
+    });
+
+    return { workout: workoutRecord, sets: setRecords };
+}
+
 export async function softDelete(storeName, id) {
     const store = await getStore(storeName, 'readwrite');
     const item = await promisifyRequest(store.get(id));
@@ -179,30 +251,76 @@ export async function setSetting(key, value) {
 
 export async function exportAllData() {
     const db = await openDB();
-    const allStores = ['exercises', 'plans', 'workouts', 'sets', 'bodyWeight', 'settings'];
+    const storeNames = BACKUP_STORE_NAMES.filter(name => db.objectStoreNames.contains(name));
+    const tx = db.transaction(storeNames, 'readonly');
     const data = { version: DB_VERSION, exportedAt: now(), stores: {} };
-    for (const name of allStores) {
-        if (!db.objectStoreNames.contains(name)) continue;
-        const store = await getStore(name);
-        data.stores[name] = await promisifyRequest(store.getAll());
-    }
+
+    const entries = await Promise.all(storeNames.map(async name => {
+        const records = await promisifyRequest(tx.objectStore(name).getAll());
+        return [name, records];
+    }));
+    data.stores = Object.fromEntries(entries);
+
     return data;
 }
 
 export async function importAllData(data, merge = false) {
-    const stores = ['exercises', 'plans', 'workouts', 'sets', 'bodyWeight', 'settings'];
-    for (const name of stores) {
-        if (!data.stores[name]) continue;
-        if (!merge) {
-            await hardDeleteAll(name);
+    const safeData = sanitizeBackupData(data);
+
+    // Validation intentionally happens before opening a write transaction.
+    validateBackupData(safeData);
+
+    const db = await openDB();
+    const storeNames = BACKUP_STORE_NAMES.filter(name => db.objectStoreNames.contains(name));
+
+    // Connection credentials are device-local and must survive a full restore.
+    let preservedSettings = [];
+    if (!merge && db.objectStoreNames.contains('settings')) {
+        const settingsTx = db.transaction('settings', 'readonly');
+        const settingsStore = settingsTx.objectStore('settings');
+        preservedSettings = (await Promise.all(
+            [...PRIVATE_SETTING_KEYS].map(key => promisifyRequest(settingsStore.get(key)))
+        )).filter(Boolean);
+    }
+
+    const tx = db.transaction(storeNames, 'readwrite');
+    const completion = new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onabort = () => reject(
+            tx.error || new Error('The database rejected the restore transaction.')
+        );
+    });
+
+    try {
+        for (const storeName of storeNames) {
+            const store = tx.objectStore(storeName);
+            if (!merge) store.clear();
+
+            for (const record of safeData.stores[storeName] || []) {
+                store.put(record);
+            }
+
+            if (!merge && storeName === 'settings') {
+                for (const setting of preservedSettings) {
+                    store.put(setting);
+                }
+            }
         }
-        await putMany(name, data.stores[name]);
+    } catch (error) {
+        tx.abort();
+        try { await completion; } catch { /* The original error is more useful. */ }
+        throw new Error(`Restore could not start; existing data was kept. ${error.message}`);
+    }
+
+    try {
+        await completion;
+    } catch (error) {
+        throw new Error(`Restore failed; existing data was kept. ${error.message}`);
     }
 }
 
 export async function clearAllData() {
-    const stores = ['exercises', 'plans', 'workouts', 'sets', 'bodyWeight', 'settings'];
-    for (const name of stores) {
+    for (const name of BACKUP_STORE_NAMES) {
         await hardDeleteAll(name);
     }
 }
