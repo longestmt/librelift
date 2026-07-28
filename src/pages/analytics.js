@@ -7,6 +7,7 @@ import { getAll, getSetting } from '../data/db.js';
 import { createLineChart } from '../components/charts.js';
 import { renderExerciseProgressList } from '../components/exercise-progress.js';
 import {
+  calculateCardioTotals,
   calculateVolumeByUnit,
   resolveSetUnit,
 } from '../engine/progress-metrics.js';
@@ -39,6 +40,14 @@ function formatVolumes(volumes, fallbackUnit) {
     .join(' + ');
 }
 
+function formatDistances(distances) {
+  const entries = [...distances.entries()];
+  if (entries.length === 0) return '—';
+  return entries
+    .map(([unit, value]) => `${Number(value.toFixed(2))} ${escapeHTML(unit)}`)
+    .join(' + ');
+}
+
 export async function renderAnalyticsPage(container) {
   const [workouts, sets, exercises, bodyWeight, fallbackUnit] = await Promise.all([
     getAll('workouts'),
@@ -66,6 +75,8 @@ export async function renderAnalyticsPage(container) {
   const weekDuration = weekWorkouts.reduce((sum, workout) => sum + (workout.durationSec || 0), 0);
   const totalVolumes = calculateVolumeByUnit(completedSets, workoutById, fallbackUnit);
   const weekVolumes = calculateVolumeByUnit(weekSets, workoutById, fallbackUnit);
+  const totalCardio = calculateCardioTotals(completedSets);
+  const weekCardio = calculateCardioTotals(weekSets);
   const firstDate = workouts.reduce(
     (earliest, workout) => !earliest || workout.date < earliest ? workout.date : earliest,
     null
@@ -97,6 +108,20 @@ export async function renderAnalyticsPage(container) {
         ${metric(completedSets.length, 'Sets Completed')}
       </div>
     </div>
+
+    ${totalCardio.sets > 0 ? `
+      <div class="card" style="margin-bottom:var(--sp-4)">
+        <div class="card-header">
+          <div class="card-title" style="font-size:var(--text-sm)">Cardio</div>
+          <span class="text-xs text-muted">All time</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-3);margin-top:var(--sp-3)">
+          ${metric(formatDuration(totalCardio.durationSec), 'Total Time', 'var(--text-lg)')}
+          ${metric(formatDistances(totalCardio.distanceByUnit), 'Distance', 'var(--text-lg)')}
+          ${metric(totalCardio.sessions, 'Sessions', 'var(--text-lg)')}
+        </div>
+        ${weekCardio.sets > 0 ? `<div class="text-xs text-muted" style="margin-top:var(--sp-3);text-align:center">This week: ${formatDuration(weekCardio.durationSec)}${weekCardio.distanceByUnit.size ? ` • ${formatDistances(weekCardio.distanceByUnit)}` : ''}</div>` : ''}
+      </div>` : ''}
 
     <div class="card" style="margin-bottom:var(--sp-4)">
       <div class="card-header">

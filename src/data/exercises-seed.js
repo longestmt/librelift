@@ -18,6 +18,74 @@ export const CATEGORIES = [
     'Compound', 'Isolation', 'Cardio', 'Stretch',
 ];
 
+export const CARDIO_EXERCISES = [
+    {
+        name: 'Treadmill Run', category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Machine',
+        mediaUrl: 'https://www.youtube.com/watch?v=_kGESn8ArrU',
+        instructions: 'Set a comfortable speed and incline. Run tall with relaxed shoulders and an even stride.'
+    },
+    {
+        name: 'Stationary Bike', category: 'Cardio', muscleGroup: 'Quadriceps', equipment: 'Machine',
+        mediaUrl: 'https://www.youtube.com/watch?v=4Hl1WAGKjMc',
+        instructions: 'Adjust the seat so the knee stays slightly bent at the bottom. Pedal smoothly at a sustainable resistance.'
+    },
+    {
+        name: 'Rowing Machine', category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Machine',
+        mediaUrl: 'https://www.youtube.com/watch?v=H0r_ZPXJLtg',
+        instructions: 'Drive with the legs, then lean back slightly and pull to the ribs. Reverse the sequence on the return.'
+    },
+    {
+        name: 'Elliptical', category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Machine',
+        mediaUrl: 'https://www.youtube.com/watch?v=EesEvYohy5o',
+        instructions: 'Keep the feet planted, posture upright, and movement smooth. Choose resistance you can sustain without rocking.'
+    },
+    {
+        name: 'Stairmaster', category: 'Cardio', muscleGroup: 'Quadriceps', equipment: 'Machine',
+        mediaUrl: 'https://www.youtube.com/watch?v=8Z8uB9tDBWo',
+        instructions: 'Stand tall and take controlled steps. Use the rails only for balance rather than supporting bodyweight.'
+    },
+    {
+        name: 'Jump Rope', category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Bodyweight',
+        mediaUrl: 'https://www.youtube.com/watch?v=u3zgHI8QnqE',
+        instructions: 'Keep jumps low, land softly, and turn the rope from the wrists. Build duration gradually.'
+    },
+    {
+        name: 'Assault Bike', category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Machine',
+        mediaUrl: 'https://www.youtube.com/watch?v=XE4VvVkhgCk',
+        instructions: 'Push and pull the handles while pedaling. Keep the torso braced and choose a repeatable effort.'
+    },
+    {
+        name: "Farmer's Walk", category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Dumbbell',
+        mediaUrl: 'https://www.youtube.com/watch?v=Fkzk_RqlYig',
+        instructions: 'Carry heavy dumbbells at your sides. Stand tall, brace the trunk, and take short controlled steps.'
+    },
+    {
+        name: 'Sled Push', category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Machine',
+        mediaUrl: 'https://www.youtube.com/watch?v=9XRRXaUpnLk',
+        instructions: 'Brace through straight arms or shoulders and drive the floor away with short, powerful steps.'
+    },
+    {
+        name: 'Battle Ropes', category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Other',
+        mediaUrl: 'https://www.youtube.com/watch?v=r2Rzaf7SaGg',
+        instructions: 'Keep a soft knee bend and braced torso. Make consistent waves from the shoulders without losing posture.'
+    },
+    {
+        name: 'Swimming', category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Bodyweight',
+        mediaUrl: 'https://www.youtube.com/watch?v=s2h0tFWwqFc',
+        instructions: 'Use a relaxed, repeatable stroke and steady breathing. Record the total moving time and distance.'
+    },
+    {
+        name: 'Walking', category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Bodyweight',
+        mediaUrl: 'https://www.youtube.com/watch?v=njeZ29umqVE',
+        instructions: 'Walk at a purposeful pace with relaxed shoulders and a natural stride.'
+    },
+    {
+        name: 'Sprints', category: 'Cardio', muscleGroup: 'Full Body', equipment: 'Bodyweight',
+        mediaUrl: 'https://www.youtube.com/watch?v=3nbjhpcZ9_g',
+        instructions: 'Warm up fully, accelerate smoothly, and stop each repeat before mechanics break down.'
+    },
+];
+
 export const DEFAULT_EXERCISES = [
     // ---- CHEST ----
     {
@@ -342,4 +410,5 @@ export const DEFAULT_EXERCISES = [
         mediaUrl: 'https://www.youtube.com/watch?v=YSxHifyI6s8',
         instructions: 'Hinge at hips, swing kettlebell between legs, drive hips to swing up to shoulder height.'
     },
+    ...CARDIO_EXERCISES,
 ];

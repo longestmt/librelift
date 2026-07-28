@@ -8,7 +8,12 @@ import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 import { escapeHTML } from '../utils/sanitize.js';
 import { formatDuration } from '../utils/format.js';
-import { resolveSetUnit, summarizeWorkout } from '../engine/progress-metrics.js';
+import {
+  calculateCardioTotals,
+  distanceUnitForWeightUnit,
+  resolveSetUnit,
+  summarizeWorkout,
+} from '../engine/progress-metrics.js';
 import { enableRovingKeyboard } from '../utils/accessibility.js';
 
 export async function renderHistoryPage(container) {
@@ -116,6 +121,18 @@ function formatVolumes(volumeByUnit) {
   ).join(' + ');
 }
 
+function formatCardioTime(seconds) {
+  const minutes = Math.floor((seconds || 0) / 60);
+  const remainder = Math.floor((seconds || 0) % 60);
+  return `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
+function formatDistances(distanceByUnit) {
+  return [...distanceByUnit.entries()]
+    .map(([unit, distance]) => `${Number(distance.toFixed(2))} ${unit}`)
+    .join(' + ');
+}
+
 function renderWorkoutsList(container, workouts, allSets, fallbackUnit) {
   if (workouts.length === 0) {
     container.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><div class="empty-state-title">No workouts yet</div><div class="empty-state-text">Complete a workout to see it here</div></div>`;
@@ -125,6 +142,7 @@ function renderWorkoutsList(container, workouts, allSets, fallbackUnit) {
   container.innerHTML = `<div class="flex flex-col gap-3">${workouts.map(w => {
     const wSets = allSets.filter(s => s.workoutId === w.id);
     const summary = summarizeWorkout(w, wSets, fallbackUnit);
+    const cardio = calculateCardioTotals(wSets);
     const dur = w.durationSec ? formatDuration(w.durationSec) : '';
     const incompleteBadge = summary.incomplete > 0
       ? `<span class="badge badge-danger">${summary.incomplete} incomplete</span>`
@@ -144,7 +162,8 @@ function renderWorkoutsList(container, workouts, allSets, fallbackUnit) {
       </div>
       <div class="flex gap-4 text-xs text-secondary" style="margin-top:var(--sp-2);flex-wrap:wrap">
         ${dur ? `<span>⏱ ${dur}</span>` : ''}
-        <span>📊 ${formatVolumes(summary.volumeByUnit)}</span>
+        ${summary.volumeByUnit.size > 0 ? `<span>📊 ${formatVolumes(summary.volumeByUnit)}</span>` : ''}
+        ${cardio.durationSec > 0 ? `<span>🏃 ${formatDuration(cardio.durationSec)}${cardio.distanceByUnit.size ? ` • ${escapeHTML(formatDistances(cardio.distanceByUnit))}` : ''}</span>` : ''}
         <span>✅ ${summary.completed}/${summary.total} sets</span>
         ${summary.exerciseCount ? `<span>💪 ${summary.exerciseCount} exercise${summary.exerciseCount !== 1 ? 's' : ''}</span>` : ''}
       </div>
@@ -183,14 +202,19 @@ function showWorkoutDetail(workout, sets, fallbackUnit, onDelete) {
         <div>
           <div class="font-semibold text-sm" style="margin-bottom:var(--sp-1);color:var(--accent)">${escapeHTML(name)}</div>
           <div class="flex flex-col gap-1">
-            ${exSets.sort((a, b) => a.setNumber - b.setNumber).map(s => `
+            ${exSets.sort((a, b) => a.setNumber - b.setNumber).map(s => {
+              const isCardio = s.mode === 'cardio' || Number.isFinite(s.durationSec);
+              const cardioUnit = s.distanceUnit || distanceUnitForWeightUnit(workout.unit || fallbackUnit);
+              return `
               <div class="flex items-center gap-3 text-sm">
                 <span class="text-muted" style="width:24px">S${s.setNumber}</span>
-                <span class="font-mono">${Number.isFinite(s.weight) ? s.weight : '—'} ${escapeHTML(resolveSetUnit(s, workout, fallbackUnit))} × ${Number.isFinite(s.reps) ? s.reps : '—'}</span>
-                ${s.rpe ? `<span class="text-xs text-muted">@${s.rpe}</span>` : ''}
+                <span class="font-mono">${isCardio
+                  ? `${formatCardioTime(s.durationSec)}${Number.isFinite(s.distance) && s.distance > 0 ? ` / ${s.distance} ${escapeHTML(cardioUnit)}` : ''}`
+                  : `${Number.isFinite(s.weight) ? s.weight : '—'} ${escapeHTML(resolveSetUnit(s, workout, fallbackUnit))} × ${Number.isFinite(s.reps) ? s.reps : '—'}`}</span>
+                ${isCardio && Number.isFinite(s.calories) ? `<span class="text-xs text-muted">${s.calories} cal</span>` : (s.rpe ? `<span class="text-xs text-muted">@${s.rpe}</span>` : '')}
                 <span>${s.completed ? '<span class="text-success" aria-label="Completed">✓</span>' : s.failed ? '<span class="text-danger" aria-label="Failed">✗</span>' : '<span class="text-muted">Incomplete</span>'}</span>
               </div>
-            `).join('')}
+            `;}).join('')}
           </div>
         </div>
       `).join('<div class="divider" style="margin:var(--sp-2) 0"></div>')}

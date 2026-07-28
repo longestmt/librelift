@@ -3,7 +3,14 @@
  */
 
 import { getAll, getById, getByIndex, put, saveCompletedWorkout, getSetting, setSetting, uuid } from '../data/db.js';
-import { suggestNextWeight, getExerciseHistory, deriveSetType, checkPersonalRecord } from '../engine/progression.js';
+import {
+  suggestNextWeight,
+  suggestNextCardio,
+  getExerciseHistory,
+  deriveSetType,
+  checkPersonalRecord,
+  checkCardioPersonalRecord,
+} from '../engine/progression.js';
 import { createTimerElement, startTimer, stopTimer } from '../components/timer.js';
 import { createPlateCalculator } from '../components/plate-calc.js';
 import { createRMCalculator } from '../components/rm-calculator.js';
@@ -13,6 +20,7 @@ import { saveSession, loadSessionRecord, clearSession } from '../data/session.js
 import { hapticLight, hapticMedium, hapticHeavy, hapticSuccess } from '../utils/haptics.js';
 import { escapeHTML } from '../utils/sanitize.js';
 import { formatDuration } from '../utils/format.js';
+import { distanceUnitForWeightUnit } from '../engine/progress-metrics.js';
 import {
   findFirstInvalidCompletedSet,
   getWorkoutProgress,
@@ -20,6 +28,42 @@ import {
   parseSetInput,
   validateSetForCompletion,
 } from '../engine/workout-validation.js';
+
+function isCardioExercise(exercise) {
+  return exercise?.mode === 'cardio'
+    || exercise?.category === 'Cardio'
+    || exercise?.sets?.some(set => set.mode === 'cardio');
+}
+
+function createCardioSet(setNumber, suggestion = {}, distanceUnit = 'mi') {
+  return {
+    id: uuid(),
+    setNumber,
+    mode: 'cardio',
+    durationSec: suggestion.durationSec ?? null,
+    distance: suggestion.distance ?? null,
+    distanceUnit,
+    calories: null,
+    completed: false,
+    failed: false,
+  };
+}
+
+function formatCardioTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '—';
+  const minutes = Math.floor(seconds / 60);
+  const remainder = Math.floor(seconds % 60);
+  return `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
+function formatCardioPerformance(set, fallbackDistanceUnit) {
+  if (!set) return 'First time';
+  const time = formatCardioTime(set.durationSec);
+  const distance = Number.isFinite(set.distance) && set.distance > 0
+    ? ` / ${set.distance} ${set.distanceUnit || fallbackDistanceUnit}`
+    : '';
+  return `Last: ${time}${distance}`;
+}
 
 let activeWorkout = null;
 let workoutInterval = null;
@@ -319,14 +363,34 @@ async function startWorkoutFromPlan(plan, unit, overrideDayIndex = null) {
 
   for (const ex of day.exercises) {
     const exercise = exercises.find(e => e.id === ex.exerciseId);
-    const suggestion = ex.exerciseId ? await suggestNextWeight(ex.exerciseId, ex, unit) : { weight: 0, reason: 'first-time' };
+    const isCardio = exercise?.category === 'Cardio';
+    const suggestion = ex.exerciseId
+      ? (isCardio
+        ? await suggestNextCardio(ex.exerciseId, ex, unit)
+        : await suggestNextWeight(ex.exerciseId, ex, unit))
+      : { weight: 0, reason: 'first-time' };
     const prevSets = ex.exerciseId ? await getByIndex('sets', 'exerciseId', ex.exerciseId) : [];
     const lastSets = getLastWorkoutSets(prevSets);
     const sets = [];
     for (let i = 0; i < ex.sets; i++) {
-      sets.push({ id: uuid(), setNumber: i + 1, targetReps: ex.reps, targetRepsMax: ex.repsMax || null, weight: suggestion.weight, reps: ex.repsMax || ex.reps, completed: false, failed: false, rpe: null });
+      sets.push(isCardio
+        ? createCardioSet(i + 1, suggestion, distanceUnitForWeightUnit(unit))
+        : { id: uuid(), setNumber: i + 1, targetReps: ex.reps, targetRepsMax: ex.repsMax || null, weight: suggestion.weight, reps: ex.repsMax || ex.reps, completed: false, failed: false, rpe: null }
+      );
     }
-    workoutExercises.push({ exerciseId: ex.exerciseId, exerciseName: exercise?.name || ex.exerciseName || 'Unknown', config: ex, sets, suggestedWeight: suggestion.weight, suggestionReason: suggestion.reason, previousPerformance: lastSets, notes: '', collapsed: false });
+    workoutExercises.push({
+      exerciseId: ex.exerciseId,
+      exerciseName: exercise?.name || ex.exerciseName || 'Unknown',
+      category: exercise?.category || null,
+      mode: isCardio ? 'cardio' : 'strength',
+      config: ex,
+      sets,
+      suggestedWeight: suggestion.weight,
+      suggestionReason: suggestion.reason,
+      previousPerformance: lastSets,
+      notes: '',
+      collapsed: false,
+    });
   }
 
   const startTime = Date.now();
@@ -424,7 +488,11 @@ async function renderActiveWorkout(container, unit) {
 }
 
 function renderExerciseCard(ex, ei, unit) {
-  const prevText = ex.previousPerformance ? `Last: ${ex.previousPerformance[0]?.weight || 0}${unit} × ${ex.previousPerformance[0]?.reps || 0}` : 'First time';
+  const isCardio = isCardioExercise(ex);
+  const distanceUnit = distanceUnitForWeightUnit(unit);
+  const prevText = isCardio
+    ? formatCardioPerformance(ex.previousPerformance?.[0], distanceUnit)
+    : (ex.previousPerformance ? `Last: ${ex.previousPerformance[0]?.weight || 0}${unit} × ${ex.previousPerformance[0]?.reps || 0}` : 'First time');
   const reasonBadge = ex.suggestionReason === 'increment' ? '<span class="badge badge-success">↑ Up</span>' : ex.suggestionReason === 'deload' ? '<span class="badge badge-danger">↓ Deload</span>' : '';
 
   return `<div class="card" data-ei="${ei}" style="${ex.supersetGroup ? 'border:none;box-shadow:none;background:transparent;padding:0' : ''}">
@@ -435,16 +503,38 @@ function renderExerciseCard(ex, ei, unit) {
         <div class="flex items-center gap-1 exercise-card-actions">
           <button type="button" class="btn btn-ghost btn-icon" data-show-history="${ei}" aria-label="History for ${escapeHTML(ex.exerciseName)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
           <button type="button" class="btn btn-ghost btn-icon" data-swap-ex="${ei}" aria-label="Swap ${escapeHTML(ex.exerciseName)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></button>
-          <button type="button" class="btn btn-ghost btn-icon" data-show-rm="${ei}" aria-label="1RM calculator for ${escapeHTML(ex.exerciseName)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="3"/></svg></button>
-          <button type="button" class="btn btn-ghost btn-icon" data-show-plates="${ei}" aria-label="Plate calculator for ${escapeHTML(ex.exerciseName)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><line x1="6" y1="12" x2="18" y2="12"/></svg></button>
+          ${isCardio ? '' : `<button type="button" class="btn btn-ghost btn-icon" data-show-rm="${ei}" aria-label="1RM calculator for ${escapeHTML(ex.exerciseName)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button type="button" class="btn btn-ghost btn-icon" data-show-plates="${ei}" aria-label="Plate calculator for ${escapeHTML(ex.exerciseName)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><line x1="6" y1="12" x2="18" y2="12"/></svg></button>`}
         </div>
       </div>
       <div class="exercise-body" style="${ex.collapsed ? 'display:none' : ''}">
-        <div class="set-grid-header" aria-hidden="true"><span style="text-align:center">SET</span><span style="text-align:center">${unit.toUpperCase()}</span><span style="text-align:center">REPS${ex.config?.repsMax && ex.config.repsMax !== ex.config.reps ? ` (${ex.config.reps}–${ex.config.repsMax})` : ''}</span><span style="text-align:center">RPE</span><span style="text-align:center">✓</span></div>
-        ${ex.sets.map((set, si) => renderSetRow(set, si, ei)).join('')}
+        <div class="set-grid-header ${isCardio ? 'cardio-set-grid' : ''}" aria-hidden="true"><span style="text-align:center">SET</span><span style="text-align:center">${isCardio ? 'TIME' : unit.toUpperCase()}</span><span style="text-align:center">${isCardio ? `DIST (${distanceUnit})` : `REPS${ex.config?.repsMax && ex.config.repsMax !== ex.config.reps ? ` (${ex.config.reps}–${ex.config.repsMax})` : ''}`}</span><span style="text-align:center">${isCardio ? 'CAL' : 'RPE'}</span><span style="text-align:center">✓</span></div>
+        ${ex.sets.map((set, si) => isCardio ? renderCardioSetRow(set, si, ei) : renderSetRow(set, si, ei)).join('')}
         <div class="flex gap-2" style="margin-top:var(--sp-2)"><button class="btn btn-ghost text-sm" data-add-set="${ei}" style="flex:1">+ Set</button>${ex.sets.length > 1 ? `<button class="btn btn-ghost text-sm text-danger" data-remove-set="${ei}">− Set</button>` : ''}<button class="btn btn-ghost text-sm" data-ex-note="${ei}" title="Note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button></div>
         ${ex.notes ? `<div class="text-xs text-muted" style="margin-top:var(--sp-1);padding:var(--sp-1) var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic">${escapeHTML(ex.notes)}</div>` : ''}
       </div></div>`;
+}
+
+function renderCardioSetRow(set, si, ei) {
+  const cls = set.completed ? 'completed' : '';
+  const icon = set.completed ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '';
+  const locked = set.completed ? 'readonly' : '';
+  const lockedCls = set.completed ? 'locked' : '';
+  const minutes = Number.isFinite(set.durationSec) ? Math.floor(set.durationSec / 60) : '';
+  const seconds = Number.isFinite(set.durationSec) ? set.durationSec % 60 : '';
+  const distance = Number.isFinite(set.distance) ? set.distance : '';
+  const calories = Number.isFinite(set.calories) ? set.calories : '';
+  return `<div class="set-row cardio-set-grid">
+    <span class="set-number" aria-hidden="true">${set.setNumber}</span>
+    <div class="cardio-time-input">
+      <input class="input-inline ${lockedCls}" type="number" min="0" step="1" aria-label="Minutes for set ${set.setNumber}" value="${minutes}" data-ei="${ei}" data-si="${si}" data-field="durationMin" inputmode="numeric" placeholder="m" ${locked}/>
+      <span aria-hidden="true">:</span>
+      <input class="input-inline ${lockedCls}" type="number" min="0" max="59" step="1" aria-label="Seconds for set ${set.setNumber}" value="${seconds}" data-ei="${ei}" data-si="${si}" data-field="durationSeconds" inputmode="numeric" placeholder="s" ${locked}/>
+    </div>
+    <input class="input-inline ${lockedCls}" type="number" min="0" step="any" aria-label="Distance for set ${set.setNumber}" value="${distance}" data-ei="${ei}" data-si="${si}" data-field="distance" inputmode="decimal" placeholder="—" ${locked}/>
+    <input class="input-inline ${lockedCls}" type="number" min="0" step="1" aria-label="Calories for set ${set.setNumber}" value="${calories}" data-ei="${ei}" data-si="${si}" data-field="calories" inputmode="numeric" placeholder="—" ${locked}/>
+    <button type="button" class="set-check ${cls}" aria-label="Mark set ${set.setNumber} ${set.completed ? 'incomplete' : 'complete'}" aria-pressed="${set.completed}" data-ei="${ei}" data-si="${si}">${icon}</button>
+  </div>`;
 }
 
 function renderLinkButton(ei) {
@@ -623,12 +713,17 @@ function setupWorkoutEvents(container, unit, autoPauseMin) {
 
         set.completed = true;
 
-        // Propagate weight to subsequent uncompleted sets with the old suggested weight
-        const oldWeight = set.weight;
+        // Reuse the just-completed values for later interval/working sets.
         for (let i = si + 1; i < ex.sets.length; i++) {
           if (!ex.sets[i].completed) {
-            ex.sets[i].weight = oldWeight;
-            ex.sets[i].reps = set.reps;
+            if (isCardioExercise(ex)) {
+              ex.sets[i].durationSec = set.durationSec;
+              ex.sets[i].distance = set.distance;
+              ex.sets[i].calories = set.calories;
+            } else {
+              ex.sets[i].weight = set.weight;
+              ex.sets[i].reps = set.reps;
+            }
           }
         }
 
@@ -647,7 +742,11 @@ function setupWorkoutEvents(container, unit, autoPauseMin) {
         }
 
         // Check for personal record
-        if (ex.exerciseId && set.weight > 0 && set.reps > 0) {
+        if (ex.exerciseId && isCardioExercise(ex)) {
+          checkCardioPersonalRecord(ex.exerciseId, set).then(pr => {
+            if (pr) showToast(`🏆 ${ex.exerciseName}: ${pr.label}`, 'success', 4000);
+          });
+        } else if (ex.exerciseId && set.weight > 0 && set.reps > 0) {
           checkPersonalRecord(ex.exerciseId, set.weight, set.reps).then(pr => {
             if (pr) showPRToast(ex.exerciseName, pr, unit);
           });
@@ -673,7 +772,18 @@ function setupWorkoutEvents(container, unit, autoPauseMin) {
     if (removeSet) { const ei = parseInt(removeSet.dataset.removeSet); const ex = activeWorkout.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); ex.sets.forEach((s, i) => s.setNumber = i + 1); saveWorkoutProgress(); renderWorkoutExercises(container, unit); } return; }
 
     const addSet = e.target.closest('[data-add-set]');
-    if (addSet) { const ei = parseInt(addSet.dataset.addSet); const ex = activeWorkout.exercises[ei]; const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }); saveWorkoutProgress(); renderWorkoutExercises(container, unit); return; }
+    if (addSet) {
+      const ei = parseInt(addSet.dataset.addSet);
+      const ex = activeWorkout.exercises[ei];
+      const last = ex.sets[ex.sets.length - 1];
+      ex.sets.push(isCardioExercise(ex)
+        ? createCardioSet(ex.sets.length + 1, last, distanceUnitForWeightUnit(unit))
+        : { id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }
+      );
+      saveWorkoutProgress();
+      renderWorkoutExercises(container, unit);
+      return;
+    }
 
     const noteBtn = e.target.closest('[data-ex-note]');
     if (noteBtn) {
@@ -696,7 +806,15 @@ function setupWorkoutEvents(container, unit, autoPauseMin) {
     const input = e.target.closest('.input-inline');
     if (!input) return;
     const ei = parseInt(input.dataset.ei), si = parseInt(input.dataset.si), field = input.dataset.field;
-    activeWorkout.exercises[ei].sets[si][field] = parseSetInput(field, input.value);
+    const set = activeWorkout.exercises[ei].sets[si];
+    if (field === 'durationMin' || field === 'durationSeconds') {
+      const row = input.closest('.set-row');
+      const minutes = Number.parseInt(row.querySelector('[data-field="durationMin"]').value || '0', 10);
+      const seconds = Number.parseInt(row.querySelector('[data-field="durationSeconds"]').value || '0', 10);
+      set.durationSec = Math.max(0, minutes || 0) * 60 + Math.max(0, Math.min(59, seconds || 0));
+    } else {
+      set[field] = parseSetInput(field, input.value);
+    }
     input.removeAttribute('aria-invalid');
     saveWorkoutProgress();
   });
@@ -814,8 +932,30 @@ async function commitFinish(container, unit, dur) {
   try {
     const allSets = [];
     for (const ex of finishingWorkout.exercises) {
-      const setType = deriveSetType(ex.config);
-      for (const s of ex.sets) allSets.push({ id: s.id, workoutId: finishingWorkout.id, exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe, completed: s.completed, failed: s.failed, notes: ex.notes, setType, unit });
+      const isCardio = isCardioExercise(ex);
+      const setType = isCardio ? null : deriveSetType(ex.config);
+      for (const s of ex.sets) {
+        allSets.push({
+          id: s.id,
+          workoutId: finishingWorkout.id,
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.exerciseName,
+          setNumber: s.setNumber,
+          weight: isCardio ? null : s.weight,
+          reps: isCardio ? null : s.reps,
+          rpe: isCardio ? null : s.rpe,
+          durationSec: isCardio ? s.durationSec : null,
+          distance: isCardio ? s.distance : null,
+          distanceUnit: isCardio ? (s.distanceUnit || distanceUnitForWeightUnit(unit)) : null,
+          calories: isCardio ? s.calories : null,
+          mode: isCardio ? 'cardio' : 'strength',
+          completed: s.completed,
+          failed: s.failed,
+          notes: ex.notes,
+          setType,
+          unit,
+        });
+      }
     }
 
     // Get last bodyweight for pre-fill
@@ -843,7 +983,7 @@ async function commitFinish(container, unit, dur) {
     hapticSuccess();
 
     const vol = savedSets.reduce((sum, record) =>
-      sum + (record.completed ? record.weight * record.reps : 0), 0);
+      sum + (record.completed && record.mode !== 'cardio' ? record.weight * record.reps : 0), 0);
     const done = savedSets.filter(record => record.completed).length;
     const durStr = formatDuration(savedWorkout.durationSec);
     activeWorkout = null;
@@ -928,7 +1068,7 @@ function cleanupWorkout() {
 
 async function showExercisePicker(exercises, exContainer, unit) {
   const body = openModal('', { title: 'Add Exercise' });
-  body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" type="search" id="add-ex-search" aria-label="Search exercises" autofocus placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button type="button" class="list-item" data-id="${escapeHTML(ex.id)}" data-name="${escapeHTML(ex.name)}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${escapeHTML(ex.name)}</div><div class="text-xs text-muted">${escapeHTML(ex.muscleGroup)} • ${escapeHTML(ex.equipment)}</div></span></button>`).join('')}</div>`;
+  body.innerHTML = `<div class="search-bar" style="margin-bottom:var(--sp-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" type="search" id="add-ex-search" aria-label="Search exercises" autofocus placeholder="Search..."/></div><div id="add-ex-list" style="max-height:300px;overflow-y:auto" class="flex flex-col gap-1">${exercises.map(ex => `<button type="button" class="list-item" data-id="${escapeHTML(ex.id)}" data-name="${escapeHTML(ex.name)}" data-category="${escapeHTML(ex.category || '')}" style="width:100%;border:none;background:none;text-align:left;font-family:var(--font-sans);color:var(--text-primary)"><span style="flex:1"><div class="text-sm font-medium">${escapeHTML(ex.name)}</div><div class="text-xs text-muted">${escapeHTML(ex.category || '')} • ${escapeHTML(ex.muscleGroup)} • ${escapeHTML(ex.equipment)}</div></span></button>`).join('')}</div>`;
 
   body.querySelector('#add-ex-search').addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase();
@@ -938,10 +1078,34 @@ async function showExercisePicker(exercises, exContainer, unit) {
   body.querySelector('#add-ex-list').addEventListener('click', async (e) => {
     const item = e.target.closest('[data-id]'); if (!item) return;
     const id = item.dataset.id, name = item.dataset.name;
-    const sug = await suggestNextWeight(id, { sets: 3, reps: 5, increment: 5 }, unit);
+    const isCardio = item.dataset.category === 'Cardio';
+    const config = isCardio
+      ? { sets: 1, targetDurationSec: 1200, targetDistance: null }
+      : { sets: 3, reps: 5, increment: 5 };
+    const sug = isCardio
+      ? await suggestNextCardio(id, config, unit)
+      : await suggestNextWeight(id, config, unit);
     const prev = await getByIndex('sets', 'exerciseId', id);
-    const sets = []; for (let i = 0; i < 3; i++) sets.push({ id: uuid(), setNumber: i + 1, targetReps: 5, weight: sug.weight, reps: 5, completed: false, failed: false, rpe: null });
-    activeWorkout.exercises.push({ exerciseId: id, exerciseName: name, config: { sets: 3, reps: 5, increment: 5 }, sets, suggestedWeight: sug.weight, suggestionReason: sug.reason, previousPerformance: getLastWorkoutSets(prev), notes: '', collapsed: false });
+    const sets = [];
+    for (let i = 0; i < config.sets; i++) {
+      sets.push(isCardio
+        ? createCardioSet(i + 1, sug, distanceUnitForWeightUnit(unit))
+        : { id: uuid(), setNumber: i + 1, targetReps: 5, weight: sug.weight, reps: 5, completed: false, failed: false, rpe: null }
+      );
+    }
+    activeWorkout.exercises.push({
+      exerciseId: id,
+      exerciseName: name,
+      category: item.dataset.category,
+      mode: isCardio ? 'cardio' : 'strength',
+      config,
+      sets,
+      suggestedWeight: sug.weight,
+      suggestionReason: sug.reason,
+      previousPerformance: getLastWorkoutSets(prev),
+      notes: '',
+      collapsed: false,
+    });
     saveSession(activeWorkout);
     closeModal(); renderWorkoutExercises(exContainer, unit); showToast(`${name} added`, 'success');
   });
@@ -965,8 +1129,8 @@ async function showSwapPicker(ei, exContainer, unit) {
         <div class="list-item" style="flex-direction:column;align-items:stretch;gap:var(--sp-2);padding:var(--sp-3)">
           <div><div class="text-sm font-medium">${escapeHTML(ex.name)}</div><div class="text-xs text-muted">${escapeHTML(ex.equipment)}</div></div>
           <div class="flex gap-2">
-            <button type="button" class="btn btn-secondary text-xs" data-swap-id="${escapeHTML(ex.id)}" data-swap-name="${escapeHTML(ex.name)}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
-            ${activeWorkout.planId ? `<button type="button" class="btn btn-primary text-xs" data-swap-id="${escapeHTML(ex.id)}" data-swap-name="${escapeHTML(ex.name)}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
+            <button type="button" class="btn btn-secondary text-xs" data-swap-id="${escapeHTML(ex.id)}" data-swap-name="${escapeHTML(ex.name)}" data-swap-category="${escapeHTML(ex.category || '')}" data-swap-mode="temp" style="flex:1;padding:var(--sp-1) var(--sp-2)">This workout</button>
+            ${activeWorkout.planId ? `<button type="button" class="btn btn-primary text-xs" data-swap-id="${escapeHTML(ex.id)}" data-swap-name="${escapeHTML(ex.name)}" data-swap-category="${escapeHTML(ex.category || '')}" data-swap-mode="permanent" style="flex:1;padding:var(--sp-1) var(--sp-2)">All future</button>` : ''}
           </div>
         </div>
       `).join('')}
@@ -983,6 +1147,7 @@ async function showSwapPicker(ei, exContainer, unit) {
     if (!btn) return;
     const newId = btn.dataset.swapId;
     const newName = btn.dataset.swapName;
+    const newCategory = btn.dataset.swapCategory;
     const mode = btn.dataset.swapMode;
 
     // Swap in current workout
@@ -990,15 +1155,26 @@ async function showSwapPicker(ei, exContainer, unit) {
     const oldName = currentEx.exerciseName;
     currentEx.exerciseId = newId;
     currentEx.exerciseName = newName;
+    currentEx.category = newCategory;
+    currentEx.mode = newCategory === 'Cardio' ? 'cardio' : 'strength';
 
-    // Recalculate weight suggestion for new exercise
-    const sug = await suggestNextWeight(newId, currentEx.config || { sets: 3, reps: 5, increment: 5 }, unit);
+    const isCardio = newCategory === 'Cardio';
+    const nextConfig = isCardio
+      ? { sets: currentEx.sets.length || 1, targetDurationSec: 1200, targetDistance: null }
+      : { sets: currentEx.sets.length || 3, reps: 5, increment: 5 };
+    currentEx.config = nextConfig;
+    const sug = isCardio
+      ? await suggestNextCardio(newId, nextConfig, unit)
+      : await suggestNextWeight(newId, nextConfig, unit);
     const prev = await getByIndex('sets', 'exerciseId', newId);
     currentEx.suggestedWeight = sug.weight;
     currentEx.suggestionReason = sug.reason;
     currentEx.previousPerformance = getLastWorkoutSets(prev);
-    // Update set weights to the new suggestion
-    for (const s of currentEx.sets) { if (!s.completed) s.weight = sug.weight; }
+    currentEx.sets = currentEx.sets.map((set, index) =>
+      isCardio
+        ? createCardioSet(index + 1, sug, distanceUnitForWeightUnit(unit))
+        : { id: set.id || uuid(), setNumber: index + 1, targetReps: 5, weight: sug.weight, reps: 5, completed: false, failed: false, rpe: null }
+    );
 
     // If permanent, also update the plan
     if (mode === 'permanent' && activeWorkout.planId) {
@@ -1047,12 +1223,18 @@ async function showExerciseHistoryModal(ei, unit) {
         <div class="card" style="padding:var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-2)">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div>
-              <div class="font-bold">${h.weight} ${escapeHTML(h.unit || unit)} × ${h.reps}</div>
+              <div class="font-bold">${h.mode === 'cardio'
+                ? `${formatCardioTime(h.durationSec)}${h.distance ? ` / ${h.distance} ${escapeHTML(h.distanceUnit || distanceUnitForWeightUnit(unit))}` : ''}`
+                : `${h.weight} ${escapeHTML(h.unit || unit)} × ${h.reps}`}</div>
               <div class="text-xs text-muted" style="margin-top:2px">${fmtDate(h.date)}</div>
             </div>
             <div style="text-align:right">
-              <div class="text-xs text-muted">Volume</div>
-              <div class="font-medium" style="color:var(--accent)">${h.volume >= 1000 ? `${(h.volume / 1000).toFixed(1)}k` : h.volume} ${escapeHTML(h.unit || unit)}</div>
+              <div class="text-xs text-muted">${h.mode === 'cardio' ? (h.pace ? 'Pace' : 'Calories') : 'Volume'}</div>
+              <div class="font-medium" style="color:var(--accent)">${h.mode === 'cardio'
+                ? (h.pace
+                  ? `${formatCardioTime(h.pace)} / ${escapeHTML(h.distanceUnit || distanceUnitForWeightUnit(unit))}`
+                  : `${h.calories || 0} cal`)
+                : `${h.volume >= 1000 ? `${(h.volume / 1000).toFixed(1)}k` : h.volume} ${escapeHTML(h.unit || unit)}`}</div>
             </div>
           </div>
           ${h.notes ? `<div class="text-sm text-muted" style="padding:var(--sp-2);background:var(--bg-elevated);border-radius:var(--radius-sm);font-style:italic;margin-top:4px">${escapeHTML(h.notes)}</div>` : ''}

@@ -2,7 +2,7 @@
  * plans.js — Workout Plan Builder page
  */
 
-import { getAll, put, softDelete, getById } from '../data/db.js';
+import { getAll, put, softDelete, getById, getSetting } from '../data/db.js';
 import { DEFAULT_PLANS } from '../data/plans-seed.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
@@ -13,6 +13,7 @@ import { clearInvalidField, setInvalidField } from '../utils/accessibility.js';
 export async function renderPlansPage(container) {
   const plans = await getAll('plans');
   const exercises = await getAll('exercises');
+  const unit = await getSetting('unit', 'lb');
 
   container.innerHTML = `
     <div class="page-header">
@@ -123,7 +124,7 @@ export async function renderPlansPage(container) {
   fab.className = 'fab';
   fab.setAttribute('aria-label', 'Create a program');
   fab.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
-  fab.addEventListener('click', () => showCreatePlanModal(exercises));
+  fab.addEventListener('click', () => showCreatePlanModal(exercises, unit));
   container.appendChild(fab);
 
   // Export template JSON
@@ -174,6 +175,17 @@ export async function renderPlansPage(container) {
           name: day.name || 'Unnamed Day',
           exercises: (day.exercises || []).map(ex => {
             const found = exercises.find(e => e.name.toLowerCase() === (ex.exerciseName || '').toLowerCase());
+            const isCardio = found?.category === 'Cardio';
+            if (isCardio) {
+              return {
+                exerciseId: found.id,
+                exerciseName: found.name,
+                sets: ex.sets || 1,
+                targetDurationSec: ex.targetDurationSec || 1200,
+                targetDistance: ex.targetDistance ?? null,
+                increment: null,
+              };
+            }
             return {
               exerciseId: found?.id || null,
               exerciseName: ex.exerciseName,
@@ -258,11 +270,14 @@ function showPlanDetail(plan, allExercises) {
             ${(day.exercises || []).map(ex => {
       const exercise = allExercises.find(e => e.id === ex.exerciseId);
       const name = exercise?.name || ex.exerciseName || 'Unknown';
+      const isCardio = exercise?.category === 'Cardio' || Number.isFinite(ex.targetDurationSec);
       return `
                 <div class="list-item" style="cursor:default">
                   <div style="flex:1">
                     <div class="text-sm font-medium">${escapeHTML(name)}</div>
-                    <div class="text-xs text-muted">${ex.sets}×${ex.reps}${ex.repsMax && ex.repsMax !== ex.reps ? '–' + ex.repsMax : ''} ${ex.increment ? `• +${ex.increment}${ex.incrementUnit || 'lb'}/session` : ''}</div>
+                    <div class="text-xs text-muted">${isCardio
+                      ? `${ex.sets} ${ex.sets === 1 ? 'set' : 'sets'} • ${Math.floor((ex.targetDurationSec || 0) / 60)}:${String((ex.targetDurationSec || 0) % 60).padStart(2, '0')}${ex.targetDistance ? ` • ${ex.targetDistance} distance` : ''}`
+                      : `${ex.sets}×${ex.reps}${ex.repsMax && ex.repsMax !== ex.reps ? '–' + ex.repsMax : ''} ${ex.increment ? `• +${ex.increment}${ex.incrementUnit || 'lb'}/session` : ''}`}</div>
                   </div>
                 </div>
               `;
@@ -297,7 +312,7 @@ function showPlanDetail(plan, allExercises) {
   });
 }
 
-function showCreatePlanModal(exercises) {
+function showCreatePlanModal(exercises, unit = 'lb') {
   const body = openModal('', { title: 'Create Plan' });
 
   body.innerHTML = `
@@ -344,14 +359,20 @@ function showCreatePlanModal(exercises) {
         <div class="flex flex-col gap-1" id="day-${di}-exercises">
           ${day.exercises.map((ex, ei) => {
       const exercise = exercises.find(e => e.id === ex.exerciseId);
+      const isCardio = exercise?.category === 'Cardio';
       const exName = exercise?.name ? escapeHTML(exercise.name) : 'Select...';
       const safeExName = exercise?.name ? escapeHTML(exercise.name) : 'exercise';
       return `
-              <div class="flex items-center gap-2 text-sm">
-                <span style="flex:1">${exName}</span>
+              <div class="flex items-center gap-2 text-sm" style="flex-wrap:wrap">
+                <span style="flex:1;min-width:120px">${exName}</span>
+                ${isCardio ? `
+                  <label class="text-xs text-muted">Sets <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Sets for ${safeExName}" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:52px" /></label>
+                  <label class="text-xs text-muted">Time <span style="display:inline-flex;align-items:center"><input class="input-inline" type="number" min="0" step="1" inputmode="numeric" aria-label="Target minutes for ${safeExName}" value="${Math.floor((ex.targetDurationSec || 0) / 60)}" data-day="${di}" data-ex="${ei}" data-field="durationMin" style="width:52px" /><span>:</span><input class="input-inline" type="number" min="0" max="59" step="1" inputmode="numeric" aria-label="Target seconds for ${safeExName}" value="${(ex.targetDurationSec || 0) % 60}" data-day="${di}" data-ex="${ei}" data-field="durationSeconds" style="width:52px" /></span></label>
+                  <label class="text-xs text-muted">Distance (${unit === 'kg' ? 'km' : 'mi'}) <input class="input-inline" type="number" min="0" step="any" inputmode="decimal" aria-label="Target distance for ${safeExName}" value="${ex.targetDistance ?? ''}" data-day="${di}" data-ex="${ei}" data-field="targetDistance" placeholder="—" style="width:64px" /></label>
+                ` : `
                 <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Sets for ${safeExName}" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:52px" />
                 <span class="text-muted">×</span>
-                <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Reps for ${safeExName}" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:52px" />
+                <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Reps for ${safeExName}" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:52px" />`}
                 <button class="btn btn-ghost btn-icon" aria-label="Remove ${safeExName}" data-remove-ex="${di}-${ei}" style="width:28px;height:28px">×</button>
               </div>
             `;
@@ -373,14 +394,13 @@ function showCreatePlanModal(exercises) {
       // Show exercise picker
       const exerciseId = await showExercisePicker(exercises);
       if (exerciseId) {
+        const exercise = exercises.find(item => item.id === exerciseId);
+        const isCardio = exercise?.category === 'Cardio';
         planDays[di].exercises.push({
           exerciseId,
-          sets: 3,
-          reps: 5,
-          increment: 5,
-          incrementUnit: 'lb',
-          deloadPercent: 10,
-          deloadAfter: 3,
+          ...(isCardio
+            ? { sets: 1, targetDurationSec: 1200, targetDistance: null, increment: null }
+            : { sets: 3, reps: 5, increment: 5, incrementUnit: 'lb', deloadPercent: 10, deloadAfter: 3 }),
         });
         renderDays();
       }
@@ -405,9 +425,27 @@ function showCreatePlanModal(exercises) {
     }
 
     const exerciseIndex = Number.parseInt(input.dataset.ex, 10);
+    const config = planDays[dayIndex].exercises[exerciseIndex];
+    const field = input.dataset.field;
+    if (field === 'durationMin' || field === 'durationSeconds') {
+      const row = input.closest('.flex.items-center');
+      const minutes = Number.parseInt(row.querySelector('[data-field="durationMin"]').value || '0', 10);
+      const seconds = Number.parseInt(row.querySelector('[data-field="durationSeconds"]').value || '0', 10);
+      config.targetDurationSec = Math.max(0, minutes || 0) * 60 + Math.max(0, Math.min(59, seconds || 0));
+      if (config.targetDurationSec > 0) clearInvalidField(input);
+      else input.setAttribute('aria-invalid', 'true');
+      return;
+    }
+    if (field === 'targetDistance') {
+      const value = input.value.trim() === '' ? null : Number(input.value);
+      config.targetDistance = value;
+      if (value === null || value > 0) clearInvalidField(input);
+      else input.setAttribute('aria-invalid', 'true');
+      return;
+    }
     const value = Number.parseInt(input.value, 10);
     if (Number.isFinite(value) && value > 0) {
-      planDays[dayIndex].exercises[exerciseIndex][input.dataset.field] = value;
+      config[field] = value;
       clearInvalidField(input);
     } else {
       input.setAttribute('aria-invalid', 'true');
@@ -427,12 +465,23 @@ function showCreatePlanModal(exercises) {
 
     const invalidConfig = [...daysContainer.querySelectorAll('input[data-field]')]
       .find(input => {
+        const field = input.dataset.field;
+        if (field === 'targetDistance') {
+          return input.value.trim() !== '' && Number(input.value) <= 0;
+        }
+        if (field === 'durationSeconds') return Number(input.value) < 0 || Number(input.value) > 59;
+        if (field === 'durationMin') {
+          const row = input.closest('.flex.items-center');
+          const minutes = Number(row.querySelector('[data-field="durationMin"]').value || 0);
+          const seconds = Number(row.querySelector('[data-field="durationSeconds"]').value || 0);
+          return minutes * 60 + seconds <= 0;
+        }
         const value = Number.parseInt(input.value, 10);
         return !Number.isFinite(value) || value <= 0;
       });
     if (invalidConfig) {
       setInvalidField(invalidConfig);
-      showToast('Sets and reps must be positive whole numbers', 'danger');
+      showToast('Check the highlighted exercise target', 'danger');
       return;
     }
 

@@ -3,7 +3,7 @@
  */
 
 import { getAll, putMany, getSetting, setSetting } from './data/db.js';
-import { DEFAULT_EXERCISES } from './data/exercises-seed.js';
+import { CARDIO_EXERCISES, DEFAULT_EXERCISES } from './data/exercises-seed.js';
 import { renderWorkoutPage } from './pages/workout.js';
 import { destroyTimer } from './components/timer.js';
 import { renderDataPage } from './pages/data.js';
@@ -43,6 +43,23 @@ async function init() {
     }));
     await putMany('exercises', exercises);
     await setSetting('exercisesSeeded', true);
+  }
+
+  // Existing installs were already marked as seeded before cardio exercises
+  // shipped. Add only missing built-ins, preserving custom exercises and data.
+  const cardioSeedVersion = await getSetting('cardioSeedVersion', 0);
+  if (cardioSeedVersion < 1) {
+    const existingNames = new Set(
+      (await getAll('exercises')).map(exercise => exercise.name.toLowerCase())
+    );
+    const additions = CARDIO_EXERCISES
+      .filter(exercise => !existingNames.has(exercise.name.toLowerCase()))
+      .map(exercise => ({
+        ...exercise,
+        id: `seed-cardio-${exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      }));
+    if (additions.length > 0) await putMany('exercises', additions);
+    await setSetting('cardioSeedVersion', 1);
   }
 
   // Default settings

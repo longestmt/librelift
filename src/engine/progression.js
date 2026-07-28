@@ -4,7 +4,7 @@
  */
 
 import { getByIndex } from '../data/db.js';
-import { estimateOneRepMax } from './progress-metrics.js';
+import { distanceUnitForWeightUnit, estimateOneRepMax } from './progress-metrics.js';
 
 /**
  * Derive a set-type key from a plan exercise config.
@@ -111,11 +111,84 @@ export async function suggestNextWeight(exerciseId, config, unit = 'lb') {
     };
 }
 
+export async function suggestNextCardio(exerciseId, config = null, unit = 'lb') {
+    const sets = (await getByIndex('sets', 'exerciseId', exerciseId))
+        .filter(set =>
+            set.completed
+            && (set.mode === 'cardio' || Number.isFinite(set.durationSec))
+        )
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    const previous = sets[0];
+    const targetDistanceUnit = distanceUnitForWeightUnit(unit);
+    if (!previous) {
+        return {
+            durationSec: config?.targetDurationSec ?? null,
+            distance: config?.targetDistance ?? null,
+            distanceUnit: targetDistanceUnit,
+            reason: 'first-time',
+        };
+    }
+    let distance = Number.isFinite(previous.distance) ? previous.distance : null;
+    const previousUnit = previous.distanceUnit || targetDistanceUnit;
+    if (distance !== null && previousUnit !== targetDistanceUnit) {
+        distance = previousUnit === 'mi'
+            ? distance * 1.609344
+            : distance / 1.609344;
+        distance = Number(distance.toFixed(2));
+    }
+    return {
+        durationSec: Number.isFinite(previous.durationSec) ? previous.durationSec : null,
+        distance,
+        distanceUnit: targetDistanceUnit,
+        reason: 'previous',
+    };
+}
+
 /**
  * Get sorted exercise history (for charts).
  */
 export async function getExerciseHistory(exerciseId) {
-    const sets = (await getByIndex('sets', 'exerciseId', exerciseId))
+    const allSets = await getByIndex('sets', 'exerciseId', exerciseId);
+    const isCardio = allSets.some(set =>
+        set.mode === 'cardio' || Number.isFinite(set.durationSec)
+    );
+    if (isCardio) {
+        const sets = allSets.filter(set =>
+            set.completed
+            && Number.isFinite(set.durationSec)
+            && set.durationSec > 0
+        );
+        const workoutMap = new Map();
+        for (const set of sets) {
+            if (!workoutMap.has(set.workoutId)) workoutMap.set(set.workoutId, []);
+            workoutMap.get(set.workoutId).push(set);
+        }
+        return [...workoutMap.entries()].map(([workoutId, workoutSets]) => {
+            const durationSec = workoutSets.reduce((sum, set) => sum + set.durationSec, 0);
+            const distance = workoutSets.reduce(
+                (sum, set) => sum + (Number.isFinite(set.distance) ? set.distance : 0),
+                0
+            );
+            const calories = workoutSets.reduce(
+                (sum, set) => sum + (Number.isFinite(set.calories) ? set.calories : 0),
+                0
+            );
+            const first = workoutSets[0];
+            return {
+                workoutId,
+                date: first.createdAt,
+                durationSec,
+                distance: distance || null,
+                distanceUnit: first.distanceUnit || null,
+                calories: calories || null,
+                pace: distance > 0 ? durationSec / distance : null,
+                notes: workoutSets.find(set => set.notes)?.notes || '',
+                mode: 'cardio',
+            };
+        }).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    }
+
+    const sets = allSets
         .filter(set =>
             set.completed
             && Number.isFinite(set.weight)
@@ -148,6 +221,38 @@ export async function getExerciseHistory(exerciseId) {
     }
 
     return history.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+}
+
+export async function checkCardioPersonalRecord(exerciseId, candidate) {
+    if (!exerciseId || !candidate || candidate.durationSec <= 0) return null;
+    const completed = (await getByIndex('sets', 'exerciseId', exerciseId))
+        .filter(set =>
+            set.completed
+            && (set.mode === 'cardio' || Number.isFinite(set.durationSec))
+        );
+    if (completed.length === 0) return null;
+
+    const previousDuration = Math.max(...completed.map(set => set.durationSec || 0));
+    if (candidate.durationSec > previousDuration && previousDuration > 0) {
+        return { type: 'duration', label: 'New longest duration!', prev: previousDuration };
+    }
+
+    const previousDistance = Math.max(...completed.map(set => set.distance || 0));
+    if (candidate.distance > previousDistance && previousDistance > 0) {
+        return { type: 'distance', label: 'New farthest distance!', prev: previousDistance };
+    }
+
+    if (candidate.distance > 0) {
+        const candidatePace = candidate.durationSec / candidate.distance;
+        const previousPaces = completed
+            .filter(set => set.durationSec > 0 && set.distance > 0)
+            .map(set => set.durationSec / set.distance);
+        const previousPace = previousPaces.length ? Math.min(...previousPaces) : null;
+        if (previousPace && candidatePace < previousPace) {
+            return { type: 'pace', label: 'New fastest pace!', prev: previousPace };
+        }
+    }
+    return null;
 }
 
 /**

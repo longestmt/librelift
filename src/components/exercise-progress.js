@@ -1,6 +1,8 @@
 import { createLineChart } from './charts.js';
 import {
+    buildCardioTrendSeries,
     buildExerciseTrendSeries,
+    distanceUnitForWeightUnit,
     latestTrendUnit,
 } from '../engine/progress-metrics.js';
 import { escapeHTML } from '../utils/sanitize.js';
@@ -14,7 +16,7 @@ function formatMetricSummary(series, metric, fractionDigits = 0) {
 }
 
 function buildEntries(exercises, sets, workouts, fallbackUnit) {
-    const exerciseNames = new Map(exercises.map(exercise => [exercise.id, exercise.name]));
+    const exerciseById = new Map(exercises.map(exercise => [exercise.id, exercise]));
     const workoutById = new Map(workouts.map(workout => [workout.id, workout]));
     const grouped = new Map();
 
@@ -27,10 +29,20 @@ function buildEntries(exercises, sets, workouts, fallbackUnit) {
     }
 
     return [...grouped.entries()].map(([key, exerciseSets]) => {
-        const series = buildExerciseTrendSeries(exerciseSets, workoutById, fallbackUnit);
+        const exercise = exerciseById.get(key);
+        const isCardio = exercise?.category === 'Cardio'
+            || exerciseSets.some(set => set.mode === 'cardio' || Number.isFinite(set.durationSec));
+        const series = isCardio
+            ? buildCardioTrendSeries(
+                exerciseSets,
+                workoutById,
+                distanceUnitForWeightUnit(fallbackUnit)
+            )
+            : buildExerciseTrendSeries(exerciseSets, workoutById, fallbackUnit);
         return {
             key,
-            name: exerciseNames.get(key) || exerciseSets[0]?.exerciseName || 'Unknown exercise',
+            name: exercise?.name || exerciseSets[0]?.exerciseName || 'Unknown exercise',
+            mode: isCardio ? 'cardio' : 'strength',
             series,
             defaultUnit: latestTrendUnit(series, fallbackUnit),
             sessions: [...series.values()].reduce((sum, points) => sum + points.length, 0),
@@ -42,19 +54,21 @@ function buildEntries(exercises, sets, workouts, fallbackUnit) {
 function renderChart(card, entry) {
     const chartArea = card.querySelector('.exercise-progress-chart');
     const activeMetric = card.querySelector('[data-progress-metric].active')?.dataset.progressMetric
-        || 'bestWeight';
+        || (entry.mode === 'cardio' ? 'durationSec' : 'bestWeight');
     const activeUnit = card.querySelector('[data-progress-unit].active')?.dataset.progressUnit
         || entry.defaultUnit;
     const points = entry.series.get(activeUnit) || [];
     const values = points.map(point => point[activeMetric]);
 
     chartArea.innerHTML = '';
-    if (values.length === 0 || values.every(value => value === 0)) {
+    if (values.length === 0 || values.every(value => !Number.isFinite(value) || value === 0)) {
         chartArea.innerHTML = `
           <div class="text-sm text-muted" style="text-align:center;padding:var(--sp-4)">
             ${activeMetric === 'estimated1RM'
                 ? 'Estimated 1RM needs a completed set with external load.'
-                : 'No external load recorded for this exercise yet.'}
+                : entry.mode === 'cardio'
+                    ? 'No usable cardio data recorded for this metric yet.'
+                    : 'No external load recorded for this exercise yet.'}
           </div>`;
         return;
     }
@@ -63,11 +77,18 @@ function renderChart(card, entry) {
         label: point.label,
         value: activeMetric === 'estimated1RM'
             ? Math.round(point.estimated1RM)
-            : point.bestWeight,
+            : activeMetric === 'durationSec' || activeMetric === 'pace'
+                ? Number((point[activeMetric] / 60).toFixed(2))
+                : point[activeMetric],
     }));
-    const label = activeMetric === 'estimated1RM'
-        ? `Estimated 1RM (${activeUnit})`
-        : `Best working weight (${activeUnit})`;
+    const labels = {
+        estimated1RM: `Estimated 1RM (${activeUnit})`,
+        bestWeight: `Best working weight (${activeUnit})`,
+        durationSec: 'Duration (minutes)',
+        distance: `Distance (${activeUnit})`,
+        pace: `Pace (min/${activeUnit}, lower is better)`,
+    };
+    const label = labels[activeMetric];
     const width = Math.min(chartArea.clientWidth || 360, 560);
     chartArea.appendChild(createLineChart(chartData, { width, height: 170, label }));
 }
@@ -89,26 +110,45 @@ export function renderExerciseProgressList(
 
     container.innerHTML = `<div class="flex flex-col gap-3">${entries.map((entry, index) => {
         const units = [...entry.series.keys()];
-        const bestWeight = formatMetricSummary(entry.series, 'bestWeight');
-        const bestE1RM = formatMetricSummary(entry.series, 'estimated1RM');
+        const bestWeight = entry.mode === 'strength'
+            ? formatMetricSummary(entry.series, 'bestWeight')
+            : '';
+        const bestE1RM = entry.mode === 'strength'
+            ? formatMetricSummary(entry.series, 'estimated1RM')
+            : '';
+        const cardioPoints = [...entry.series.values()].flat();
+        const longestDuration = cardioPoints.length
+            ? Math.max(...cardioPoints.map(point => point.durationSec || 0))
+            : 0;
+        const farthestDistance = cardioPoints.length
+            ? Math.max(...cardioPoints.map(point => point.distance || 0))
+            : 0;
 
         return `
           <div class="card exercise-progress-card" data-progress-index="${index}">
             <button type="button" class="card-header exercise-progress-toggle" aria-expanded="false" style="width:100%;border:0;background:none;color:inherit;text-align:left;font:inherit;padding:0;cursor:pointer">
               <div>
                 <div class="card-title" style="font-size:var(--text-sm)">${escapeHTML(entry.name)}</div>
-                <div class="text-xs text-muted">${entry.sessions} session${entry.sessions !== 1 ? 's' : ''} • Best ${bestWeight}</div>
+                <div class="text-xs text-muted">${entry.sessions} session${entry.sessions !== 1 ? 's' : ''} • ${entry.mode === 'cardio'
+                    ? `Longest ${Math.floor(longestDuration / 60)}:${String(longestDuration % 60).padStart(2, '0')}${farthestDistance ? ` • Farthest ${Number(farthestDistance.toFixed(2))}` : ''}`
+                    : `Best ${bestWeight}`}</div>
               </div>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" class="chevron-icon" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <div class="exercise-progress-detail" hidden>
-              <div class="text-xs text-muted" style="margin-top:var(--sp-2)">Best estimated 1RM: ${bestE1RM}</div>
+              ${entry.mode === 'strength' ? `<div class="text-xs text-muted" style="margin-top:var(--sp-2)">Best estimated 1RM: ${bestE1RM}</div>` : ''}
               <div class="flex gap-1" role="group" aria-label="Progress metric" style="margin-top:var(--sp-3);flex-wrap:wrap">
-                <button type="button" class="btn btn-ghost text-xs active" data-progress-metric="bestWeight" aria-pressed="true">Best Weight</button>
-                <button type="button" class="btn btn-ghost text-xs" data-progress-metric="estimated1RM" aria-pressed="false">Est. 1RM</button>
+                ${entry.mode === 'cardio' ? `
+                  <button type="button" class="btn btn-ghost text-xs active" data-progress-metric="durationSec" aria-pressed="true">Duration</button>
+                  <button type="button" class="btn btn-ghost text-xs" data-progress-metric="distance" aria-pressed="false">Distance</button>
+                  <button type="button" class="btn btn-ghost text-xs" data-progress-metric="pace" aria-pressed="false">Pace</button>
+                ` : `
+                  <button type="button" class="btn btn-ghost text-xs active" data-progress-metric="bestWeight" aria-pressed="true">Best Weight</button>
+                  <button type="button" class="btn btn-ghost text-xs" data-progress-metric="estimated1RM" aria-pressed="false">Est. 1RM</button>
+                `}
               </div>
               ${units.length > 1 ? `
-                <div class="flex gap-1" role="group" aria-label="Weight unit" style="margin-top:var(--sp-2)">
+                <div class="flex gap-1" role="group" aria-label="${entry.mode === 'cardio' ? 'Distance' : 'Weight'} unit" style="margin-top:var(--sp-2)">
                   ${units.map(unit => `<button type="button" class="btn btn-ghost text-xs ${unit === entry.defaultUnit ? 'active' : ''}" data-progress-unit="${escapeHTML(unit)}" aria-pressed="${unit === entry.defaultUnit}">${escapeHTML(unit)}</button>`).join('')}
                 </div>` : ''}
               <div class="exercise-progress-chart" style="margin-top:var(--sp-2)"></div>

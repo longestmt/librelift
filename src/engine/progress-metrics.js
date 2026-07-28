@@ -14,6 +14,7 @@ export function calculateVolumeByUnit(sets, workoutById = new Map(), fallbackUni
 
     for (const set of sets || []) {
         if (!set?.completed) continue;
+        if (set.mode === 'cardio') continue;
         if (!Number.isFinite(set.weight) || !Number.isFinite(set.reps)) continue;
 
         const unit = resolveSetUnit(set, workoutById.get(set.workoutId), fallbackUnit);
@@ -22,6 +23,106 @@ export function calculateVolumeByUnit(sets, workoutById = new Map(), fallbackUni
     }
 
     return volumes;
+}
+
+export function distanceUnitForWeightUnit(unit = 'lb') {
+    return unit === 'kg' ? 'km' : 'mi';
+}
+
+export function calculateCardioTotals(sets) {
+    const completed = (sets || []).filter(set =>
+        set?.completed && (set.mode === 'cardio' || Number.isFinite(set.durationSec))
+    );
+    const distanceByUnit = new Map();
+    const workoutIds = new Set();
+    let durationSec = 0;
+    let calories = 0;
+
+    for (const set of completed) {
+        durationSec += Number.isFinite(set.durationSec) ? Math.max(0, set.durationSec) : 0;
+        calories += Number.isFinite(set.calories) ? Math.max(0, set.calories) : 0;
+        if (Number.isFinite(set.distance) && set.distance > 0) {
+            const unit = set.distanceUnit || 'mi';
+            distanceByUnit.set(unit, (distanceByUnit.get(unit) || 0) + set.distance);
+        }
+        if (set.workoutId) workoutIds.add(set.workoutId);
+    }
+
+    return {
+        durationSec,
+        calories,
+        distanceByUnit,
+        sessions: workoutIds.size,
+        sets: completed.length,
+    };
+}
+
+/**
+ * Build one cardio observation per workout. Duration and distance are totals;
+ * pace is seconds per distance unit, so lower values are better.
+ */
+export function buildCardioTrendSeries(
+    exerciseSets,
+    workoutById = new Map(),
+    fallbackDistanceUnit = 'mi'
+) {
+    const byWorkout = new Map();
+    let order = 0;
+    for (const set of exerciseSets || []) {
+        if (!set?.completed) continue;
+        if (set.mode !== 'cardio' && !Number.isFinite(set.durationSec)) continue;
+        if (!byWorkout.has(set.workoutId)) {
+            byWorkout.set(set.workoutId, { sets: [], order: order++ });
+        }
+        byWorkout.get(set.workoutId).sets.push(set);
+    }
+
+    const byUnit = new Map();
+    for (const [workoutId, group] of byWorkout) {
+        const workout = workoutById.get(workoutId);
+        const unitGroups = new Map();
+        for (const set of group.sets) {
+            const unit = set.distanceUnit || fallbackDistanceUnit;
+            if (!unitGroups.has(unit)) unitGroups.set(unit, []);
+            unitGroups.get(unit).push(set);
+        }
+
+        for (const [unit, sets] of unitGroups) {
+            const date = pointDate(workout, sets);
+            const durationSec = sets.reduce(
+                (sum, set) => sum + (Number.isFinite(set.durationSec) ? Math.max(0, set.durationSec) : 0),
+                0
+            );
+            const distance = sets.reduce(
+                (sum, set) => sum + (Number.isFinite(set.distance) ? Math.max(0, set.distance) : 0),
+                0
+            );
+            const calories = sets.reduce(
+                (sum, set) => sum + (Number.isFinite(set.calories) ? Math.max(0, set.calories) : 0),
+                0
+            );
+            const pace = durationSec > 0 && distance > 0 ? durationSec / distance : null;
+            if (!byUnit.has(unit)) byUnit.set(unit, []);
+            byUnit.get(unit).push({
+                workoutId,
+                date,
+                label: shortDateLabel(date),
+                durationSec,
+                distance,
+                calories,
+                pace,
+                sortKey: `${date}:${workout?.createdAt || ''}`,
+                order: group.order,
+            });
+        }
+    }
+
+    for (const points of byUnit.values()) {
+        points.sort((a, b) =>
+            a.sortKey.localeCompare(b.sortKey) || a.order - b.order
+        );
+    }
+    return byUnit;
 }
 
 export function summarizeWorkout(workout, sets, fallbackUnit = 'lb') {

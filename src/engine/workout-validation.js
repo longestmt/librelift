@@ -9,11 +9,47 @@ export function parseSetInput(field, rawValue) {
     const value = Number(text);
     if (!Number.isFinite(value)) return null;
 
-    if (!['weight', 'reps', 'rpe'].includes(field)) return null;
+    if (!['weight', 'reps', 'rpe', 'distance', 'calories'].includes(field)) return null;
     return value;
 }
 
 export function validateSetForCompletion(set) {
+    if (set?.mode === 'cardio') {
+        if (!Number.isInteger(set.durationSec) || set.durationSec <= 0) {
+            return {
+                valid: false,
+                field: 'durationMin',
+                message: 'Enter a cardio duration greater than zero.',
+            };
+        }
+
+        if (
+            set.distance !== null
+            && set.distance !== undefined
+            && (!Number.isFinite(set.distance) || set.distance <= 0)
+        ) {
+            return {
+                valid: false,
+                field: 'distance',
+                message: 'Distance must be greater than zero, or left blank.',
+            };
+        }
+
+        if (
+            set.calories !== null
+            && set.calories !== undefined
+            && (!Number.isFinite(set.calories) || set.calories < 0)
+        ) {
+            return {
+                valid: false,
+                field: 'calories',
+                message: 'Calories must be zero or more, or left blank.',
+            };
+        }
+
+        return { valid: true, field: null, message: '' };
+    }
+
     if (!Number.isFinite(set?.weight) || set.weight < 0) {
         return {
             valid: false,
