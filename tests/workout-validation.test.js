@@ -33,6 +33,24 @@ test('limits optional RPE values to 1 through 10', () => {
     assert.equal(validateSetForCompletion({ weight: 10, reps: 5, rpe: 8.5 }).valid, true);
 });
 
+test('validates cardio duration while allowing optional distance and calories', () => {
+    assert.equal(validateSetForCompletion({
+        mode: 'cardio',
+        durationSec: 600,
+        distance: null,
+        calories: null,
+    }).valid, true);
+    assert.equal(validateSetForCompletion({
+        mode: 'cardio',
+        durationSec: 0,
+    }).field, 'durationMin');
+    assert.equal(validateSetForCompletion({
+        mode: 'cardio',
+        durationSec: 600,
+        distance: -1,
+    }).field, 'distance');
+});
+
 test('summarizes progress and locates invalid completed sets', () => {
     const workout = {
         exercises: [{

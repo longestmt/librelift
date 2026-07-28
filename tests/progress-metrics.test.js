@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+    buildCardioTrendSeries,
     buildExerciseTrendSeries,
+    calculateCardioTotals,
     calculateVolumeByUnit,
     estimateOneRepMax,
     latestTrendUnit,
@@ -41,6 +43,62 @@ test('keeps mixed-unit volume separate', () => {
 
     assert.equal(volumes.get('lb'), 500);
     assert.equal(volumes.get('kg'), 250);
+});
+
+test('keeps cardio out of strength volume and summarizes cardio by distance unit', () => {
+    const sets = [
+        {
+            workoutId: 'mixed',
+            mode: 'strength',
+            weight: 100,
+            reps: 5,
+            completed: true,
+        },
+        {
+            workoutId: 'mixed',
+            mode: 'cardio',
+            durationSec: 1200,
+            distance: 2.5,
+            distanceUnit: 'mi',
+            calories: 150,
+            completed: true,
+        },
+    ];
+
+    assert.equal(calculateVolumeByUnit(sets).get('lb'), 500);
+    const cardio = calculateCardioTotals(sets);
+    assert.equal(cardio.durationSec, 1200);
+    assert.equal(cardio.distanceByUnit.get('mi'), 2.5);
+    assert.equal(cardio.calories, 150);
+    assert.equal(cardio.sessions, 1);
+});
+
+test('builds cardio trends with total duration, distance, and pace per workout', () => {
+    const workouts = new Map([
+        ['run', { id: 'run', date: '2026-07-28' }],
+    ]);
+    const series = buildCardioTrendSeries([
+        {
+            workoutId: 'run',
+            mode: 'cardio',
+            durationSec: 300,
+            distance: 0.5,
+            distanceUnit: 'mi',
+            completed: true,
+        },
+        {
+            workoutId: 'run',
+            mode: 'cardio',
+            durationSec: 300,
+            distance: 0.5,
+            distanceUnit: 'mi',
+            completed: true,
+        },
+    ], workouts);
+
+    assert.equal(series.get('mi')[0].durationSec, 600);
+    assert.equal(series.get('mi')[0].distance, 1);
+    assert.equal(series.get('mi')[0].pace, 600);
 });
 
 test('keeps same-day workouts as separate trend points and excludes incomplete sets', () => {

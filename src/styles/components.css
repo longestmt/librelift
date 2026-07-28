@@ -710,6 +710,23 @@ textarea.input {
     font-weight: var(--weight-medium);
 }
 
+.cardio-set-grid {
+    grid-template-columns: 36px minmax(108px, 1.35fr) minmax(68px, 1fr) 56px 36px;
+}
+
+.cardio-time-input {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 2px;
+    align-items: center;
+}
+
+.cardio-time-input .input-inline {
+    min-width: 0;
+    padding-left: var(--sp-1);
+    padding-right: var(--sp-1);
+}
+
 .workout-header,
 .workout-header-actions,
 .exercise-card-actions {
@@ -828,6 +845,11 @@ textarea.input {
     .set-grid-header {
         grid-template-columns: 28px minmax(42px, 1fr) minmax(42px, 1fr) 48px 40px;
         gap: var(--sp-1);
+    }
+
+    .set-row.cardio-set-grid,
+    .set-grid-header.cardio-set-grid {
+        grid-template-columns: 28px minmax(92px, 1.4fr) minmax(52px, 1fr) 44px 40px;
     }
 
     .set-row .input-inline {
