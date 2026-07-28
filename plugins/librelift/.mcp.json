@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "librelift": {
+      "command": "node",
+      "args": ["./scripts/server.mjs"],
+      "cwd": ".",
+      "env_vars": [
+        "LIBRELIFT_DATA_FILE",
+        "LIBRELIFT_GITHUB_TOKEN",
+        "LIBRELIFT_GIST_ID"
+      ]
+    }
+  }
+}

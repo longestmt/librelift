@@ -1,0 +1,29 @@
+{
+  "name": "librelift",
+  "version": "0.1.0",
+  "description": "Log lifts and review LibreLift progress from ChatGPT.",
+  "author": {
+    "name": "LibreLift",
+    "url": "https://github.com/longestmt/librelift"
+  },
+  "homepage": "https://librelift.app",
+  "repository": "https://github.com/longestmt/librelift",
+  "license": "AGPL-3.0-or-later",
+  "keywords": ["fitness", "lifting", "workouts", "progressive-overload"],
+  "interface": {
+    "displayName": "LibreLift",
+    "shortDescription": "Log lifts and review your progress.",
+    "longDescription": "Use natural language to log strength workouts and body weight, inspect recent training, and review progress from your existing LibreLift data.",
+    "developerName": "LibreLift",
+    "category": "Health & Fitness",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://librelift.app",
+    "defaultPrompt": [
+      "Log my workout in LibreLift.",
+      "Show my recent workouts.",
+      "How is my bench press progressing?"
+    ],
+    "brandColor": "#86C88A"
+  },
+  "mcpServers": "./.mcp.json"
+}

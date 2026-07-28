@@ -1,0 +1,19 @@
+{
+  "name": "@librelift/chatgpt-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LibreLift MCP server for ChatGPT and Codex.",
+  "scripts": {
+    "start": "node scripts/server.mjs",
+    "start:http": "node scripts/http-server.mjs",
+    "test": "node --test spec/*.spec.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
+  }
+}
