@@ -2,7 +2,7 @@
  * history.js — Workout History page
  */
 
-import { getAll, softDelete, put, getSetting } from '../data/db.js';
+import { deleteWorkoutCascade, getAll, getSetting, updateRecord } from '../data/db.js';
 import { renderExerciseProgressList } from '../components/exercise-progress.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
@@ -231,8 +231,7 @@ function showWorkoutDetail(workout, sets, fallbackUnit, onDelete) {
       setTimeout(() => { confirmPending = false; deleteBtn.textContent = 'Delete Workout'; deleteBtn.style.fontWeight = ''; }, 3000);
       return;
     }
-    await softDelete('workouts', workout.id);
-    for (const s of sets) await softDelete('sets', s.id);
+    await deleteWorkoutCascade(workout.id);
     closeModal();
     showToast('Workout deleted', 'success');
     if (onDelete) onDelete();
@@ -250,8 +249,17 @@ function showWorkoutDetail(workout, sets, fallbackUnit, onDelete) {
       body.querySelector('#dur-edit-save').addEventListener('click', async () => {
         const val = parseInt(editInput.value);
         if (!val || val <= 0) { showToast('Enter a valid duration', 'danger'); return; }
-        workout.durationSec = val * 60;
-        await put('workouts', workout);
+        const updated = await updateRecord('workouts', workout.id, current => ({
+          ...current,
+          durationSec: val * 60,
+        }));
+        if (!updated) {
+          showToast('This workout was removed on another device', 'danger');
+          closeModal();
+          if (onDelete) onDelete();
+          return;
+        }
+        workout = updated;
         body.querySelector('#dur-edit').outerHTML = `<span id="dur-display" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Tap to edit">${formatDuration(workout.durationSec)}</span>`;
         showToast('Duration updated', 'success');
         if (onDelete) onDelete(); // re-render list to reflect change

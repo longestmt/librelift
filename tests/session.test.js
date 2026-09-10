@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseSession, serializeSession } from '../src/data/session.js';
+import {
+    clearSession,
+    loadSession,
+    parseSession,
+    saveSession,
+    serializeSession,
+} from '../src/data/session.js';
 
 test('round-trips the versioned active-workout session', () => {
     const workout = {
@@ -37,5 +43,24 @@ test('rejects corrupted or unrelated session data', () => {
         assert.equal(parseSession(JSON.stringify({ version: 1 })), null);
     } finally {
         console.warn = originalWarn;
+    }
+});
+
+test('device-clear session step removes the active local workout draft', () => {
+    const values = new Map();
+    const originalStorage = globalThis.localStorage;
+    globalThis.localStorage = {
+        getItem: key => values.get(key) ?? null,
+        setItem: (key, value) => values.set(key, String(value)),
+        removeItem: key => values.delete(key),
+    };
+    try {
+        const workout = { id: 'local-draft', startTime: 1000, exercises: [] };
+        assert.equal(saveSession(workout), true);
+        assert.equal(loadSession().id, workout.id);
+        clearSession();
+        assert.equal(loadSession(), null);
+    } finally {
+        globalThis.localStorage = originalStorage;
     }
 });

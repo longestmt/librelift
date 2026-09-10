@@ -2,7 +2,7 @@
  * workout.js — Active Workout page (hero page)
  */
 
-import { getAll, getById, getByIndex, put, saveCompletedWorkout, getSetting, setSetting, uuid } from '../data/db.js';
+import { getAll, getById, getByIndex, saveCompletedWorkout, getSetting, setSetting, updateRecord, uuid } from '../data/db.js';
 import {
   suggestNextWeight,
   suggestNextCardio,
@@ -326,7 +326,6 @@ function renderWorkoutRecovery(container, unit, savedSession) {
   });
 
   container.querySelector('#discard-workout-btn').addEventListener('click', async () => {
-    await revertPlanDayForDraft(workout);
     clearSession();
     activeWorkout = null;
     if (window.location.hash !== '#/workout') {
@@ -336,14 +335,6 @@ function renderWorkoutRecovery(container, unit, savedSession) {
     }
     showToast('Workout draft discarded', 'info');
   });
-}
-
-async function revertPlanDayForDraft(workout) {
-  if (!workout?.planId) return;
-  const plan = await getById('plans', workout.planId);
-  if (!plan) return;
-  plan.currentDayIndex = workout.dayIndex;
-  await put('plans', plan);
 }
 
 function getLastWorkoutSets(allSets) {
@@ -356,6 +347,7 @@ function getLastWorkoutSets(allSets) {
 
 async function startWorkoutFromPlan(plan, unit, overrideDayIndex = null) {
   hapticMedium();
+  const distanceUnit = await getSetting('distanceUnit', distanceUnitForWeightUnit(unit));
   const dayIndex = overrideDayIndex !== null ? overrideDayIndex : (plan.currentDayIndex || 0);
   const day = plan.days[dayIndex];
   const exercises = await getAll('exercises');
@@ -374,7 +366,7 @@ async function startWorkoutFromPlan(plan, unit, overrideDayIndex = null) {
     const sets = [];
     for (let i = 0; i < ex.sets; i++) {
       sets.push(isCardio
-        ? createCardioSet(i + 1, suggestion, distanceUnitForWeightUnit(unit))
+        ? createCardioSet(i + 1, suggestion, distanceUnit)
         : { id: uuid(), setNumber: i + 1, targetReps: ex.reps, targetRepsMax: ex.repsMax || null, weight: suggestion.weight, reps: ex.repsMax || ex.reps, completed: false, failed: false, rpe: null }
       );
     }
@@ -394,10 +386,8 @@ async function startWorkoutFromPlan(plan, unit, overrideDayIndex = null) {
   }
 
   const startTime = Date.now();
-  activeWorkout = { id: uuid(), planId: plan.id, planName: plan.name, dayName: day.name, dayIndex, startTime, inactivityStartedAt: startTime, exercises: workoutExercises, notes: '' };
+  activeWorkout = { id: uuid(), planId: plan.id, planName: plan.name, dayName: day.name, dayId: day.dayId, dayIndex, startTime, inactivityStartedAt: startTime, distanceUnit, exercises: workoutExercises, notes: '' };
   saveSession(activeWorkout);
-  plan.currentDayIndex = (dayIndex + 1) % plan.days.length;
-  await put('plans', plan);
 }
 
 function startEmptyWorkout() {
@@ -407,7 +397,11 @@ function startEmptyWorkout() {
 }
 
 async function renderActiveWorkout(container, unit) {
-  const autoPauseMin = await getSetting('autoPauseMin', 15);
+  const [autoPauseMin, configuredDistanceUnit] = await Promise.all([
+    getSetting('autoPauseMin', 15),
+    getSetting('distanceUnit', distanceUnitForWeightUnit(unit)),
+  ]);
+  activeWorkout.distanceUnit ||= configuredDistanceUnit;
 
   container.innerHTML = `
     <div class="flex items-center justify-between workout-header gap-2" style="margin-bottom:var(--sp-4)">
@@ -489,7 +483,9 @@ async function renderActiveWorkout(container, unit) {
 
 function renderExerciseCard(ex, ei, unit) {
   const isCardio = isCardioExercise(ex);
-  const distanceUnit = distanceUnitForWeightUnit(unit);
+  const distanceUnit = ex.sets?.find(set => set.distanceUnit)?.distanceUnit
+    || activeWorkout?.distanceUnit
+    || distanceUnitForWeightUnit(unit);
   const prevText = isCardio
     ? formatCardioPerformance(ex.previousPerformance?.[0], distanceUnit)
     : (ex.previousPerformance ? `Last: ${ex.previousPerformance[0]?.weight || 0}${unit} × ${ex.previousPerformance[0]?.reps || 0}` : 'First time');
@@ -777,7 +773,11 @@ function setupWorkoutEvents(container, unit, autoPauseMin) {
       const ex = activeWorkout.exercises[ei];
       const last = ex.sets[ex.sets.length - 1];
       ex.sets.push(isCardioExercise(ex)
-        ? createCardioSet(ex.sets.length + 1, last, distanceUnitForWeightUnit(unit))
+        ? createCardioSet(
+          ex.sets.length + 1,
+          last,
+          last?.distanceUnit || activeWorkout?.distanceUnit || distanceUnitForWeightUnit(unit)
+        )
         : { id: uuid(), setNumber: ex.sets.length + 1, targetReps: last?.targetReps || 5, weight: last?.weight || 0, reps: last?.reps || 5, completed: false, failed: false, rpe: null }
       );
       saveWorkoutProgress();
@@ -902,23 +902,51 @@ async function finishWorkout(container, unit, incompleteConfirmed = false) {
         </div>
       </div>`;
 
-    body.querySelector('#dur-keep').addEventListener('click', () => { closeModal(); commitFinish(container, unit, dur); });
+    body.querySelector('#dur-keep').addEventListener('click', () => { closeModal(); promptBodyWeightAndCommit(container, unit, dur); });
     if (hasActivity) {
-      body.querySelector('#dur-activity').addEventListener('click', () => { closeModal(); commitFinish(container, unit, activityDur); });
+      body.querySelector('#dur-activity').addEventListener('click', () => { closeModal(); promptBodyWeightAndCommit(container, unit, activityDur); });
     }
     body.querySelector('#dur-manual-save').addEventListener('click', () => {
       const val = parseInt(body.querySelector('#dur-manual-input').value);
       if (!val || val <= 0) { showToast('Enter a valid duration in minutes', 'danger'); return; }
       closeModal();
-      commitFinish(container, unit, val * 60);
+      promptBodyWeightAndCommit(container, unit, val * 60);
     });
     return;
   }
 
-  commitFinish(container, unit, dur);
+  promptBodyWeightAndCommit(container, unit, dur);
 }
 
-async function commitFinish(container, unit, dur) {
+async function promptBodyWeightAndCommit(container, unit, dur) {
+  if (!activeWorkout || isFinishing) return;
+  const bwEntries = await getAll('bodyWeight');
+  const lastBW = bwEntries.sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+  const body = openModal('', { title: 'Finish Workout' });
+  body.innerHTML = `
+    <p class="text-sm text-secondary" style="margin-bottom:var(--sp-4)">Optionally record today’s body weight. It will be saved atomically with the workout, its sets, and plan progress.</p>
+    <div class="input-group" style="margin-bottom:var(--sp-4)">
+      <label class="input-label" for="finish-body-weight">Body weight (${escapeHTML(unit)})</label>
+      <input class="input" type="number" min="0" step="0.1" id="finish-body-weight" placeholder="${lastBW ? escapeHTML(String(lastBW.value)) : 'Leave blank'}" inputmode="decimal" />
+    </div>
+    <div class="flex flex-col gap-2">
+      <button class="btn btn-primary btn-full" id="finish-save-atomic">Save Workout</button>
+      <button class="btn btn-secondary btn-full" id="finish-go-back">Go Back</button>
+    </div>`;
+  body.querySelector('#finish-go-back').addEventListener('click', () => closeModal());
+  body.querySelector('#finish-save-atomic').addEventListener('click', () => {
+    const raw = body.querySelector('#finish-body-weight').value.trim();
+    const value = raw === '' ? null : Number.parseFloat(raw);
+    if (value !== null && (!Number.isFinite(value) || value <= 0)) {
+      showToast('Enter a positive body weight or leave it blank', 'danger');
+      return;
+    }
+    closeModal();
+    commitFinish(container, unit, dur, value);
+  });
+}
+
+async function commitFinish(container, unit, dur, bodyWeightValue = null) {
   if (!activeWorkout || isFinishing) return;
 
   const finishingWorkout = activeWorkout;
@@ -930,6 +958,13 @@ async function commitFinish(container, unit, dur) {
   }
 
   try {
+    if (bodyWeightValue !== null && !finishingWorkout.pendingBodyWeightId) {
+      // Persist the UUID in the local draft before the domain transaction. If
+      // the app closes after commit but before clearSession, retrying cannot
+      // create a second same-workout body-weight record.
+      finishingWorkout.pendingBodyWeightId = uuid();
+      saveSession(finishingWorkout);
+    }
     const allSets = [];
     for (const ex of finishingWorkout.exercises) {
       const isCardio = isCardioExercise(ex);
@@ -958,10 +993,6 @@ async function commitFinish(container, unit, dur) {
       }
     }
 
-    // Get last bodyweight for pre-fill
-    const bwEntries = await getAll('bodyWeight');
-    const lastBW = bwEntries.sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
-
     const { workout: savedWorkout, sets: savedSets } = await saveCompletedWorkout({
       id: finishingWorkout.id,
       date: new Date().toISOString().split('T')[0],
@@ -972,7 +1003,19 @@ async function commitFinish(container, unit, dur) {
       durationSec: dur,
       exerciseCount: finishingWorkout.exercises.length,
       unit,
-    }, allSets);
+    }, allSets, {
+      planProgress: finishingWorkout.planId ? {
+        planId: finishingWorkout.planId,
+        completedDayId: finishingWorkout.dayId,
+        completedDayIndex: finishingWorkout.dayIndex,
+      } : null,
+      bodyWeight: bodyWeightValue === null ? null : {
+        id: finishingWorkout.pendingBodyWeightId,
+        date: new Date().toISOString().split('T')[0],
+        value: bodyWeightValue,
+        unit,
+      },
+    });
 
     clearSession();
     clearInactivityTimer();
@@ -991,25 +1034,9 @@ async function commitFinish(container, unit, dur) {
 
     container.innerHTML = `<div style="text-align:center;padding-top:var(--sp-8);animation:scaleIn 300ms var(--ease-spring)"><div style="width:80px;height:80px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-4)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--success-text)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="page-title" style="margin-bottom:var(--sp-2)">Workout Complete!</h1><p class="text-secondary">${escapeHTML(finishingWorkout.dayName || 'Workout')}</p></div>
         <div class="card" style="margin-top:var(--sp-6)"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);text-align:center"><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${durStr}</div><div class="text-xs text-muted">Duration</div></div><div><div class="font-bold text-accent" style="font-size:var(--text-xl)">${vol.toLocaleString()}</div><div class="text-xs text-muted">Volume</div></div><div><div class="font-bold text-success" style="font-size:var(--text-xl)">${done}/${allSets.length}</div><div class="text-xs text-muted">Sets</div></div></div></div>
-        <div class="card" style="margin-top:var(--sp-3);padding:var(--sp-3)">
-          <div class="flex items-center gap-3">
-            <span style="font-size:20px">⚖️</span>
-            <div style="flex:1">
-              <div class="text-xs text-muted" style="margin-bottom:2px">Bodyweight (optional)</div>
-              <div class="flex items-center gap-2">
-                <input class="input" type="number" min="0" step="0.1" id="bw-input" aria-label="Bodyweight in ${escapeHTML(unit)}" placeholder="${lastBW ? lastBW.value : 'e.g. 185'}" value="${lastBW ? lastBW.value : ''}" style="width:100px" />
-                <span class="text-sm text-muted">${unit}</span>
-              </div>
-            </div>
-          </div>
-        </div>
         <button class="btn btn-primary btn-full btn-lg" style="margin-top:var(--sp-4)" id="done-btn">Done</button>`;
 
-    container.querySelector('#done-btn').addEventListener('click', async () => {
-      const bwVal = parseFloat(container.querySelector('#bw-input').value);
-      if (bwVal && bwVal > 0) {
-        await put('bodyWeight', { date: new Date().toISOString().split('T')[0], value: bwVal, unit });
-      }
+    container.querySelector('#done-btn').addEventListener('click', () => {
       window.location.hash = '/data';
     });
     showToast('Workout saved! 💪', 'success');
@@ -1029,30 +1056,18 @@ async function commitFinish(container, unit, dur) {
 async function cancelWorkout(container, unit) {
   const body = openModal('', { title: 'Stop Workout?' });
   const hasPlan = !!activeWorkout?.planId;
-  body.innerHTML = `<p class="text-secondary" style="margin-bottom:var(--sp-4)">Discarding removes this local draft and any sets logged in it.</p>
+  body.innerHTML = `<p class="text-secondary" style="margin-bottom:var(--sp-4)">Discarding removes this device-local draft and any sets logged in it. Plan progress advances only after a successful completion.</p>
       <div class="flex flex-col gap-2">
         <button class="btn btn-secondary btn-full" id="cancel-keep">Keep Going</button>
-        <button class="btn btn-danger btn-full" id="cancel-cancel">${hasPlan ? 'Discard Draft — Repeat This Day' : 'Discard Draft'}</button>
-        ${hasPlan ? '<button class="btn btn-ghost btn-full" id="cancel-skip">Discard and Skip This Day</button>' : ''}
+        <button class="btn btn-danger btn-full" id="cancel-cancel">${hasPlan ? 'Discard Draft — Keep This Day Next' : 'Discard Draft'}</button>
       </div>`;
   body.querySelector('#cancel-keep').addEventListener('click', () => closeModal());
 
-  // Cancel: revert day index so user gets the same workout again
   body.querySelector('#cancel-cancel').addEventListener('click', async () => {
     closeModal();
-    await revertPlanDayForDraft(activeWorkout);
     cleanupWorkout();
     showToast(hasPlan ? 'Draft discarded — this day will repeat' : 'Workout draft discarded', 'info');
   });
-
-  // Skip: keep day index advanced (already done at start)
-  if (hasPlan) {
-    body.querySelector('#cancel-skip').addEventListener('click', () => {
-      closeModal();
-      cleanupWorkout();
-      showToast('Draft discarded — moving to the next day', 'info');
-    });
-  }
 }
 
 function cleanupWorkout() {
@@ -1089,7 +1104,11 @@ async function showExercisePicker(exercises, exContainer, unit) {
     const sets = [];
     for (let i = 0; i < config.sets; i++) {
       sets.push(isCardio
-        ? createCardioSet(i + 1, sug, distanceUnitForWeightUnit(unit))
+        ? createCardioSet(
+          i + 1,
+          sug,
+          activeWorkout?.distanceUnit || distanceUnitForWeightUnit(unit)
+        )
         : { id: uuid(), setNumber: i + 1, targetReps: 5, weight: sug.weight, reps: 5, completed: false, failed: false, rpe: null }
       );
     }
@@ -1162,7 +1181,10 @@ async function showSwapPicker(ei, exContainer, unit) {
     const nextConfig = isCardio
       ? { sets: currentEx.sets.length || 1, targetDurationSec: 1200, targetDistance: null }
       : { sets: currentEx.sets.length || 3, reps: 5, increment: 5 };
-    currentEx.config = nextConfig;
+    currentEx.config = {
+      ...nextConfig,
+      planExerciseId: currentEx.config?.planExerciseId,
+    };
     const sug = isCardio
       ? await suggestNextCardio(newId, nextConfig, unit)
       : await suggestNextWeight(newId, nextConfig, unit);
@@ -1172,24 +1194,28 @@ async function showSwapPicker(ei, exContainer, unit) {
     currentEx.previousPerformance = getLastWorkoutSets(prev);
     currentEx.sets = currentEx.sets.map((set, index) =>
       isCardio
-        ? createCardioSet(index + 1, sug, distanceUnitForWeightUnit(unit))
+        ? createCardioSet(
+          index + 1,
+          sug,
+          activeWorkout?.distanceUnit || distanceUnitForWeightUnit(unit)
+        )
         : { id: set.id || uuid(), setNumber: index + 1, targetReps: 5, weight: sug.weight, reps: 5, completed: false, failed: false, rpe: null }
     );
 
     // If permanent, also update the plan
     if (mode === 'permanent' && activeWorkout.planId) {
-      const plan = await getById('plans', activeWorkout.planId);
-      if (plan) {
-        const day = plan.days[activeWorkout.dayIndex];
-        if (day) {
-          const planEx = day.exercises.find(e => e.exerciseId === oldId || e.exerciseName === oldName);
-          if (planEx) {
-            planEx.exerciseId = newId;
-            planEx.exerciseName = newName;
-            await put('plans', plan);
-          }
-        }
-      }
+      await updateRecord('plans', activeWorkout.planId, plan => {
+        const day = plan.days.find(item => item.dayId === activeWorkout.dayId)
+          || plan.days[activeWorkout.dayIndex];
+        if (!day) return plan;
+        const planEx = day.exercises.find(exercise =>
+          exercise.planExerciseId === currentEx.config.planExerciseId
+        );
+        if (!planEx) return plan;
+        planEx.exerciseId = newId;
+        planEx.exerciseName = newName;
+        return plan;
+      });
     }
 
     saveSession(activeWorkout);
@@ -1289,7 +1315,7 @@ export function openWorkoutPage(container) {
     if (!card) return;
     const plan = await getById('plans', card.dataset.planId);
     if (plan) {
-      const unit = await getSetting('distanceUnit', 'lb');
+      const unit = await getSetting('unit', 'lb');
       await startWorkoutFromPlan(plan, unit);
       renderActiveWorkout(container, unit);
     }

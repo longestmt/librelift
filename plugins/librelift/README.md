@@ -32,6 +32,13 @@ After ChatGPT writes data, use **Restore Backup** in LibreLift to pull it onto
 the device. Push current app data before beginning a ChatGPT logging session to
 reduce the chance of overwriting newer local-only changes.
 
+When the LibreLift dataset is actively synchronized with LibreSync, this plugin
+is still a backup-file writer, not a live replica. Do not let it update an older
+Gist or portable backup behind the synchronized dataset: restoring that file is
+an explicit import/replacement operation and can create tombstones or conflicts.
+Export or push a current safety backup first. A future plugin version can become
+its own authorized Node LibreSync device.
+
 ## Tools
 
 - `list_exercises`

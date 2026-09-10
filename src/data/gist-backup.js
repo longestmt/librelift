@@ -4,11 +4,11 @@
  * Cleanly separated so it can be removed if needed.
  */
 
-import { exportAllData, importAllData } from './db.js';
+import { exportAllData } from './db.js';
 import { getSetting, setSetting } from './db.js';
 import { sanitizeBackupData } from './backup-security.js';
 import { validateBackupData } from './backup-validation.js';
-import { exportSafetySnapshot } from './io.js';
+import { replaceAllDataWithSafetySnapshot } from './io.js';
 
 const GIST_API = 'https://api.github.com/gists';
 const GIST_FILE = 'librelift-backup.json';
@@ -143,11 +143,14 @@ export async function pullBackup() {
 }
 
 /** Restore from gist backup (replaces local data) */
-export async function restoreFromGist() {
+export async function restoreFromGist({
+    pull = pullBackup,
+    createSafetySnapshot,
+    importer,
+} = {}) {
     // Pull and validate before creating a snapshot or changing local data.
-    const data = await pullBackup();
-    await exportSafetySnapshot();
-    await importAllData(data, false);
+    const data = await pull();
+    await replaceAllDataWithSafetySnapshot(data, { createSafetySnapshot, importer });
 
     return data;
 }

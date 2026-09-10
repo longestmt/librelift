@@ -2,8 +2,9 @@
  * app.js — LibreLift app shell, router, and navigation
  */
 
-import { getAll, putMany, getSetting, setSetting } from './data/db.js';
+import { getAll, putMany, getSetting, setSetting, runIdentityMigrations } from './data/db.js';
 import { CARDIO_EXERCISES, DEFAULT_EXERCISES } from './data/exercises-seed.js';
+import { builtinExerciseId, BUILTIN_SEED_TIMESTAMP } from './data/identity.js';
 import { renderWorkoutPage } from './pages/workout.js';
 import { destroyTimer } from './components/timer.js';
 import { renderDataPage } from './pages/data.js';
@@ -12,6 +13,10 @@ import { renderPlansPage } from './pages/plans.js';
 import { renderSettingsPage } from './pages/settings.js';
 import { hapticLight } from './utils/haptics.js';
 import { escapeHTML } from './utils/sanitize.js';
+import { initializeSync } from './data/sync.js';
+import { registerSyncBackend } from './data/sync.js';
+import { createLibreLiftSyncBackend } from './data/sync-backend.js';
+import { ensureInitialDefaultSettings } from './data/app-initialization.js';
 
 const ROUTES = {
   '/workout': { render: renderWorkoutPage, label: 'Workout', icon: 'dumbbell' },
@@ -34,12 +39,29 @@ const app = document.getElementById('app');
 let routeSequence = 0;
 
 async function init() {
+  // Identity migration must finish before seeding, routing, or synchronization.
+  await runIdentityMigrations();
+
+  // Install the transaction recorder before any startup writes. We delay
+  // automatic network activity until migrations and one-time seeds finish.
+  let startupSyncStatus = { connected: false };
+  try {
+    const syncBackend = await createLibreLiftSyncBackend();
+    registerSyncBackend(syncBackend);
+    startupSyncStatus = await syncBackend.getStatus();
+  } catch (error) {
+    // A damaged sync profile must not make local lifting data inaccessible.
+    console.error('LibreSync initialization failed:', error);
+  }
+
   // Seed exercises on first run
   const seeded = await getSetting('exercisesSeeded', false);
   if (!seeded) {
-    const exercises = DEFAULT_EXERCISES.map((ex, i) => ({
+    const exercises = DEFAULT_EXERCISES.map(ex => ({
       ...ex,
-      id: `seed-${i}`,
+      id: builtinExerciseId(ex.name),
+      createdAt: BUILTIN_SEED_TIMESTAMP,
+      updatedAt: BUILTIN_SEED_TIMESTAMP,
     }));
     await putMany('exercises', exercises);
     await setSetting('exercisesSeeded', true);
@@ -56,21 +78,31 @@ async function init() {
       .filter(exercise => !existingNames.has(exercise.name.toLowerCase()))
       .map(exercise => ({
         ...exercise,
-        id: `seed-cardio-${exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        id: builtinExerciseId(exercise.name),
+        createdAt: BUILTIN_SEED_TIMESTAMP,
+        updatedAt: BUILTIN_SEED_TIMESTAMP,
       }));
     if (additions.length > 0) await putMany('exercises', additions);
     await setSetting('cardioSeedVersion', 1);
   }
 
-  // Default settings
-  if (await getSetting('unit') === null) await setSetting('unit', 'lb');
-  if (await getSetting('barWeight') === null) await setSetting('barWeight', 45);
-  if (await getSetting('restTimer') === null) await setSetting('restTimer', 90);
-  if (await getSetting('theme') === null) await setSetting('theme', 'dark');
+  await ensureInitialDefaultSettings({
+    hasRegisteredSyncDevice: startupSyncStatus.connected,
+  });
 
   // Apply theme
   const theme = await getSetting('theme', 'dark');
   if (theme && theme !== 'dark') document.documentElement.setAttribute('data-theme', theme);
+
+  // Start launch/reconnect/foreground sync only after deterministic IDs and
+  // one-time seeds are complete.
+  try {
+    await initializeSync();
+  } catch (error) {
+    // A damaged sync profile or unavailable relay must never make local lifting
+    // data inaccessible. Settings exposes the actionable status/error.
+    console.error('LibreSync initialization failed:', error);
+  }
 
   renderShell();
   handleRoute();

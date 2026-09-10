@@ -3,11 +3,11 @@
  * Saves/restores full app data to a private WebDAV folder (e.g. Nextcloud)
  */
 
-import { exportAllData, importAllData } from './db.js';
+import { exportAllData } from './db.js';
 import { getSetting, setSetting } from './db.js';
 import { sanitizeBackupData } from './backup-security.js';
 import { validateBackupData } from './backup-validation.js';
-import { exportSafetySnapshot } from './io.js';
+import { replaceAllDataWithSafetySnapshot } from './io.js';
 import { Capacitor } from '@capacitor/core';
 
 /** Get WebDAV Credentials */
@@ -127,7 +127,7 @@ export async function pushToWebDav() {
 }
 
 /** Pull backup from WebDAV Server */
-export async function pullFromWebDav() {
+export async function pullFromWebDav({ createSafetySnapshot, importer } = {}) {
     const config = await getWebDavConfig();
     if (!config.url || !config.username || !config.password) {
         throw new Error('WebDAV is not fully configured.');
@@ -190,8 +190,7 @@ export async function pullFromWebDav() {
 
     // Local data remains authoritative until the remote backup is proven valid.
     validateBackupData(parsedData);
-    await exportSafetySnapshot();
-    await importAllData(parsedData, false);
+    await replaceAllDataWithSafetySnapshot(parsedData, { createSafetySnapshot, importer });
 
     return true;
 }

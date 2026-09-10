@@ -2,7 +2,7 @@
  * settings.js — Settings page
  */
 
-import { getSetting, setSetting } from '../data/db.js';
+import { getSetting, setSetting, setSettings } from '../data/db.js';
 import { exportData, importData } from '../data/io.js';
 import { showToast } from '../components/toast.js';
 import { STANDARD_PLATES_LB, STANDARD_PLATES_KG } from '../engine/progression.js';
@@ -14,6 +14,7 @@ import {
   setInvalidField,
 } from '../utils/accessibility.js';
 import { escapeHTML } from '../utils/sanitize.js';
+import { renderSyncSettings } from '../components/sync-settings.js';
 
 export async function renderSettingsPage(container) {
   const unit = await getSetting('unit', 'lb');
@@ -21,6 +22,7 @@ export async function renderSettingsPage(container) {
   const restTimer = await getSetting('restTimer', 90);
   const autoPauseMin = await getSetting('autoPauseMin', 15);
   const maxWorkoutMin = await getSetting('maxWorkoutMin', 120);
+  const distanceUnit = await getSetting('distanceUnit', unit === 'kg' ? 'km' : 'mi');
   const theme = await getSetting('theme', 'dark');
   const plates = await getSetting('plateInventory', null);
   const defaultPlates = unit === 'kg' ? { ...STANDARD_PLATES_KG } : { ...STANDARD_PLATES_LB };
@@ -37,6 +39,15 @@ export async function renderSettingsPage(container) {
         <div class="tabs" id="unit-tabs" role="radiogroup" aria-label="Weight unit">
           <button class="tab ${unit === 'lb' ? 'active' : ''}" role="radio" aria-checked="${unit === 'lb'}" tabindex="${unit === 'lb' ? '0' : '-1'}" data-unit="lb">Pounds (lb)</button>
           <button class="tab ${unit === 'kg' ? 'active' : ''}" role="radio" aria-checked="${unit === 'kg'}" tabindex="${unit === 'kg' ? '0' : '-1'}" data-unit="kg">Kilograms (kg)</button>
+        </div>
+      </div>
+
+      <!-- Distance Units -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:var(--sp-3)">Distance Units</div>
+        <div class="tabs" id="distance-unit-tabs" role="radiogroup" aria-label="Distance unit">
+          <button class="tab ${distanceUnit === 'mi' ? 'active' : ''}" role="radio" aria-checked="${distanceUnit === 'mi'}" tabindex="${distanceUnit === 'mi' ? '0' : '-1'}" data-distance-unit="mi">Miles (mi)</button>
+          <button class="tab ${distanceUnit === 'km' ? 'active' : ''}" role="radio" aria-checked="${distanceUnit === 'km'}" tabindex="${distanceUnit === 'km' ? '0' : '-1'}" data-distance-unit="km">Kilometres (km)</button>
         </div>
       </div>
 
@@ -108,6 +119,12 @@ export async function renderSettingsPage(container) {
         </div>
       </div>
 
+      <!-- Synchronization -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:var(--sp-2)">LibreSync</div>
+        <div id="libresync-section"><div class="text-sm text-muted" role="status">Loading synchronization status…</div></div>
+      </div>
+
       <!-- Data -->
       <div class="card">
         <div class="card-title" style="margin-bottom:var(--sp-3)">Data</div>
@@ -158,17 +175,41 @@ export async function renderSettingsPage(container) {
       </div>
     </div>`;
 
+  try {
+    await renderSyncSettings(container.querySelector('#libresync-section'));
+  } catch (error) {
+    container.querySelector('#libresync-section').innerHTML = `
+      <div class="text-sm text-danger" role="alert">Synchronization settings could not load: ${escapeHTML(error.message)}</div>`;
+  }
+
   // Unit toggle
   container.querySelector('#unit-tabs').addEventListener('click', async (e) => {
     const tab = e.target.closest('.tab');
     if (!tab) return;
     const newUnit = tab.dataset.unit;
-    await setSetting('unit', newUnit);
-    await setSetting('barWeight', newUnit === 'kg' ? 20 : 45);
+    await setSettings({
+      unit: newUnit,
+      barWeight: newUnit === 'kg' ? 20 : 45,
+    });
     showToast(`Units set to ${newUnit}`, 'success');
     window.dispatchEvent(new HashChangeEvent('hashchange'));
   });
   enableRovingKeyboard(container.querySelector('#unit-tabs'), { selector: '[role="radio"]' });
+
+  container.querySelector('#distance-unit-tabs').addEventListener('click', async event => {
+    const tab = event.target.closest('.tab');
+    if (!tab) return;
+    const nextDistanceUnit = tab.dataset.distanceUnit;
+    await setSetting('distanceUnit', nextDistanceUnit);
+    container.querySelector('#distance-unit-tabs').querySelectorAll('.tab').forEach(candidate => {
+      const active = candidate.dataset.distanceUnit === nextDistanceUnit;
+      candidate.classList.toggle('active', active);
+      candidate.setAttribute('aria-checked', String(active));
+      candidate.tabIndex = active ? 0 : -1;
+    });
+    showToast(`Distance set to ${nextDistanceUnit}`, 'success');
+  });
+  enableRovingKeyboard(container.querySelector('#distance-unit-tabs'), { selector: '[role="radio"]' });
 
   function saveNonNegativeNumber(input, setting, successMessage, { integer = false } = {}) {
     input.addEventListener('input', () => clearInvalidField(input));
@@ -289,7 +330,7 @@ export async function renderSettingsPage(container) {
             <button class="btn btn-primary btn-sm" id="gist-push" style="flex:1">Back Up Now</button>
             <button class="btn btn-secondary btn-sm" id="gist-pull" style="flex:1">Restore Backup</button>
           </div>
-          <div class="text-xs text-muted">Restore replaces local workout data after downloading a safety copy.</div>
+          <div class="text-xs text-muted">Restore replaces local workout data only after an exact safety file is saved and read back.</div>
           <button class="btn btn-ghost btn-sm text-xs" id="gist-disconnect" style="color:var(--danger)">Disconnect GitHub</button>
         </div>`;
       gistSection.querySelector('#gist-push').addEventListener('click', async (e) => {
@@ -333,7 +374,7 @@ export async function renderSettingsPage(container) {
           btn.textContent = 'Restoring safely…';
           btn.disabled = true;
           await restoreFromGist();
-          showToast('Backup restored. A safety copy was downloaded.', 'success');
+          showToast('Backup restored after safety-file verification.', 'success');
           window.dispatchEvent(new HashChangeEvent('hashchange'));
         } catch (err) {
           showToast('Restore failed: ' + err.message, 'danger');
@@ -421,7 +462,7 @@ export async function renderSettingsPage(container) {
             <button class="btn btn-primary btn-sm" id="webdav-push" style="flex:1">Back Up Now</button>
             <button class="btn btn-secondary btn-sm" id="webdav-pull" style="flex:1">Restore Backup</button>
           </div>
-          <div class="text-xs text-muted">Restore replaces local workout data after downloading a safety copy.</div>
+          <div class="text-xs text-muted">Restore replaces local workout data only after an exact safety file is saved and read back.</div>
           <button class="btn btn-ghost btn-sm text-xs" id="webdav-disconnect" style="color:var(--danger)">Clear Configuration</button>
         </div>`;
 
@@ -467,7 +508,7 @@ export async function renderSettingsPage(container) {
           btn.textContent = 'Restoring safely…';
           btn.disabled = true;
           await pullFromWebDav();
-          showToast('Backup restored. A safety copy was downloaded.', 'success');
+          showToast('Backup restored after safety-file verification.', 'success');
           window.dispatchEvent(new HashChangeEvent('hashchange'));
         } catch (err) {
           showToast('Restore Failed: ' + err.message, 'danger');

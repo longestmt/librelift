@@ -2,7 +2,7 @@
  * plans.js — Workout Plan Builder page
  */
 
-import { getAll, put, softDelete, getById, getSetting } from '../data/db.js';
+import { getAll, put, softDelete, getById, getSetting, uuid } from '../data/db.js';
 import { DEFAULT_PLANS } from '../data/plans-seed.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
@@ -348,14 +348,14 @@ function showCreatePlanModal(exercises, unit = 'lb') {
 
   function addDay() {
     const dayIndex = planDays.length;
-    planDays.push({ name: `Day ${dayIndex + 1}`, exercises: [] });
+    planDays.push({ dayId: uuid(), name: `Day ${dayIndex + 1}`, exercises: [] });
     renderDays();
   }
 
   function renderDays() {
     daysContainer.innerHTML = planDays.map((day, di) => `
       <div class="card" style="padding:var(--sp-3)">
-        <input class="input" aria-label="Name for day ${di + 1}" value="${escapeHTML(day.name)}" data-day="${di}" style="margin-bottom:var(--sp-2); font-weight:600" />
+        <input class="input" aria-label="Name for day ${di + 1}" value="${escapeHTML(day.name)}" data-day-id="${escapeHTML(day.dayId)}" style="margin-bottom:var(--sp-2); font-weight:600" />
         <div class="flex flex-col gap-1" id="day-${di}-exercises">
           ${day.exercises.map((ex, ei) => {
       const exercise = exercises.find(e => e.id === ex.exerciseId);
@@ -366,19 +366,19 @@ function showCreatePlanModal(exercises, unit = 'lb') {
               <div class="flex items-center gap-2 text-sm" style="flex-wrap:wrap">
                 <span style="flex:1;min-width:120px">${exName}</span>
                 ${isCardio ? `
-                  <label class="text-xs text-muted">Sets <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Sets for ${safeExName}" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:52px" /></label>
-                  <label class="text-xs text-muted">Time <span style="display:inline-flex;align-items:center"><input class="input-inline" type="number" min="0" step="1" inputmode="numeric" aria-label="Target minutes for ${safeExName}" value="${Math.floor((ex.targetDurationSec || 0) / 60)}" data-day="${di}" data-ex="${ei}" data-field="durationMin" style="width:52px" /><span>:</span><input class="input-inline" type="number" min="0" max="59" step="1" inputmode="numeric" aria-label="Target seconds for ${safeExName}" value="${(ex.targetDurationSec || 0) % 60}" data-day="${di}" data-ex="${ei}" data-field="durationSeconds" style="width:52px" /></span></label>
-                  <label class="text-xs text-muted">Distance (${unit === 'kg' ? 'km' : 'mi'}) <input class="input-inline" type="number" min="0" step="any" inputmode="decimal" aria-label="Target distance for ${safeExName}" value="${ex.targetDistance ?? ''}" data-day="${di}" data-ex="${ei}" data-field="targetDistance" placeholder="—" style="width:64px" /></label>
+                  <label class="text-xs text-muted">Sets <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Sets for ${safeExName}" value="${ex.sets}" data-day-id="${escapeHTML(day.dayId)}" data-plan-exercise-id="${escapeHTML(ex.planExerciseId)}" data-field="sets" style="width:52px" /></label>
+                  <label class="text-xs text-muted">Time <span style="display:inline-flex;align-items:center"><input class="input-inline" type="number" min="0" step="1" inputmode="numeric" aria-label="Target minutes for ${safeExName}" value="${Math.floor((ex.targetDurationSec || 0) / 60)}" data-day-id="${escapeHTML(day.dayId)}" data-plan-exercise-id="${escapeHTML(ex.planExerciseId)}" data-field="durationMin" style="width:52px" /><span>:</span><input class="input-inline" type="number" min="0" max="59" step="1" inputmode="numeric" aria-label="Target seconds for ${safeExName}" value="${(ex.targetDurationSec || 0) % 60}" data-day-id="${escapeHTML(day.dayId)}" data-plan-exercise-id="${escapeHTML(ex.planExerciseId)}" data-field="durationSeconds" style="width:52px" /></span></label>
+                  <label class="text-xs text-muted">Distance (${unit === 'kg' ? 'km' : 'mi'}) <input class="input-inline" type="number" min="0" step="any" inputmode="decimal" aria-label="Target distance for ${safeExName}" value="${ex.targetDistance ?? ''}" data-day-id="${escapeHTML(day.dayId)}" data-plan-exercise-id="${escapeHTML(ex.planExerciseId)}" data-field="targetDistance" placeholder="—" style="width:64px" /></label>
                 ` : `
-                <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Sets for ${safeExName}" value="${ex.sets}" data-day="${di}" data-ex="${ei}" data-field="sets" style="width:52px" />
+                <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Sets for ${safeExName}" value="${ex.sets}" data-day-id="${escapeHTML(day.dayId)}" data-plan-exercise-id="${escapeHTML(ex.planExerciseId)}" data-field="sets" style="width:52px" />
                 <span class="text-muted">×</span>
-                <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Reps for ${safeExName}" value="${ex.reps}" data-day="${di}" data-ex="${ei}" data-field="reps" style="width:52px" />`}
-                <button class="btn btn-ghost btn-icon" aria-label="Remove ${safeExName}" data-remove-ex="${di}-${ei}" style="width:28px;height:28px">×</button>
+                <input class="input-inline" type="number" min="1" step="1" inputmode="numeric" aria-label="Reps for ${safeExName}" value="${ex.reps}" data-day-id="${escapeHTML(day.dayId)}" data-plan-exercise-id="${escapeHTML(ex.planExerciseId)}" data-field="reps" style="width:52px" />`}
+                <button class="btn btn-ghost btn-icon" aria-label="Remove ${safeExName}" data-remove-ex="${escapeHTML(ex.planExerciseId)}" data-day-id="${escapeHTML(day.dayId)}" style="width:28px;height:28px">×</button>
               </div>
             `;
     }).join('')}
         </div>
-        <button class="btn btn-ghost text-sm" data-add-exercise="${di}" style="margin-top:var(--sp-2)">+ Exercise</button>
+        <button class="btn btn-ghost text-sm" data-add-exercise="${escapeHTML(day.dayId)}" style="margin-top:var(--sp-2)">+ Exercise</button>
       </div>
     `).join('');
   }
@@ -390,13 +390,15 @@ function showCreatePlanModal(exercises, unit = 'lb') {
   daysContainer.addEventListener('click', async (e) => {
     const addExBtn = e.target.closest('[data-add-exercise]');
     if (addExBtn) {
-      const di = parseInt(addExBtn.dataset.addExercise);
+      const day = planDays.find(item => item.dayId === addExBtn.dataset.addExercise);
+      if (!day) return;
       // Show exercise picker
       const exerciseId = await showExercisePicker(exercises);
       if (exerciseId) {
         const exercise = exercises.find(item => item.id === exerciseId);
         const isCardio = exercise?.category === 'Cardio';
-        planDays[di].exercises.push({
+        day.exercises.push({
+          planExerciseId: uuid(),
           exerciseId,
           ...(isCardio
             ? { sets: 1, targetDurationSec: 1200, targetDistance: null, increment: null }
@@ -408,24 +410,30 @@ function showCreatePlanModal(exercises, unit = 'lb') {
 
     const removeBtn = e.target.closest('[data-remove-ex]');
     if (removeBtn) {
-      const [di, ei] = removeBtn.dataset.removeEx.split('-').map(Number);
-      planDays[di].exercises.splice(ei, 1);
+      const day = planDays.find(item => item.dayId === removeBtn.dataset.dayId);
+      if (!day) return;
+      day.exercises = day.exercises.filter(
+        exercise => exercise.planExerciseId !== removeBtn.dataset.removeEx
+      );
       renderDays();
     }
   });
 
   daysContainer.addEventListener('input', event => {
-    const input = event.target.closest('input[data-day]');
+    const input = event.target.closest('input[data-day-id]');
     if (!input) return;
-    const dayIndex = Number.parseInt(input.dataset.day, 10);
+    const day = planDays.find(item => item.dayId === input.dataset.dayId);
+    if (!day) return;
 
     if (!input.dataset.field) {
-      planDays[dayIndex].name = input.value;
+      day.name = input.value;
       return;
     }
 
-    const exerciseIndex = Number.parseInt(input.dataset.ex, 10);
-    const config = planDays[dayIndex].exercises[exerciseIndex];
+    const config = day.exercises.find(
+      exercise => exercise.planExerciseId === input.dataset.planExerciseId
+    );
+    if (!config) return;
     const field = input.dataset.field;
     if (field === 'durationMin' || field === 'durationSeconds') {
       const row = input.closest('.flex.items-center');
@@ -486,10 +494,10 @@ function showCreatePlanModal(exercises, unit = 'lb') {
     }
 
     // Update day names from inputs
-    daysContainer.querySelectorAll('input[data-day]').forEach(input => {
+    daysContainer.querySelectorAll('input[data-day-id]').forEach(input => {
       if (input.dataset.field) return;
-      const di = parseInt(input.dataset.day);
-      if (!input.dataset.ex) planDays[di].name = input.value;
+      const day = planDays.find(item => item.dayId === input.dataset.dayId);
+      if (day) day.name = input.value;
     });
 
     await put('plans', {

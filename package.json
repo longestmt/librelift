@@ -12,6 +12,8 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.1.0",
+    "@libresync/testkit": "file:vendor/libresync/libresync-testkit-0.1.0.tgz",
+    "fake-indexeddb": "^6.2.5",
     "vite": "^6.1.0",
     "vite-plugin-pwa": "^0.21.1"
   },
@@ -19,6 +21,8 @@
   "dependencies": {
     "@capacitor/android": "^8.1.0",
     "@capacitor/core": "^8.1.0",
-    "@capacitor/haptics": "^8.0.1"
+    "@capacitor/haptics": "^8.0.1",
+    "@libresync/client": "file:vendor/libresync/libresync-client-0.1.4.tgz",
+    "@libresync/protocol": "file:vendor/libresync/libresync-protocol-0.1.0.tgz"
   }
 }

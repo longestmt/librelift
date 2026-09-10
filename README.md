@@ -24,7 +24,49 @@ Built with **Vite + vanilla JS + IndexedDB**. No frameworks, no lock-in.
 - **Data Backup** — JSON export/import
 - **Themes** — Compline (dark) / Lauds (light)
 - **PWA** — installable, works offline
-- **Sync-Ready** — UUID + timestamps + soft-delete on every record
+- **Encrypted LibreSync** — optional offline-first multi-device synchronization through a self-hosted relay
+
+## LibreSync
+
+LibreSync is optional and remains separate from JSON, Gist, and WebDAV backups.
+Configure it under **Settings → LibreSync**. A new vault needs explicit remote
+storage consent, a LibreSync HTTPS URL, and a device label. An authorized device
+can create a short-lived, single-use pairing payload for another device. There
+is no recovery phrase in this version, so keep at least one authorized device
+or a current portable backup.
+
+Joining with existing local records and every full replacement restore first
+writes a safety JSON file and verifies its exact bytes by reading the selected
+file back. Browsers without a native save-file API download the file and ask
+you to select that same file before the operation can continue.
+
+Synchronized data:
+
+- exercises, plans, completed workouts, workout sets, and body-weight records;
+- unit, bar weight, rest timer, auto-pause threshold, maximum workout duration,
+  distance unit, plate inventory, and theme.
+
+Device-local data:
+
+- the active workout draft/session and last-used plan;
+- seed and migration flags;
+- Gist and WebDAV credentials and backup metadata;
+- LibreSync vault keys, device credentials, cursor, inbox, outbox, quarantine,
+  and conflict state.
+
+An in-progress workout cannot be handed to another device. Local writes remain
+available while the relay is unreachable and synchronize after reconnect, while
+the app is open. Browser key storage is protected only by this browser profile
+and origin. End-to-end encryption protects relay storage; it does not protect a
+compromised device, browser profile, app, or authorized malicious replica.
+
+Conflict review retains every concurrent alternative and lets the user keep one
+or enter an intentional merged value. A live update remains visible beside a
+concurrent deletion until the conflict is resolved. Device revocation blocks
+future relay access but cannot erase data or a vault key already downloaded by
+that device. Explicit disconnect keeps app data but removes the local relay
+credential; pairing again registers a fresh device identity, while the old
+server device entry remains available for revocation by an authorized device.
 
 ## Quick Start
 
@@ -32,6 +74,10 @@ Built with **Vite + vanilla JS + IndexedDB**. No frameworks, no lock-in.
 npm install
 npm run dev
 ```
+
+For local LibreSync package validation, build and pack the sibling `libresync`
+workspace first, then install its generated tarballs. LibreLift never relies on
+global `npm link` state.
 
 ## Tech Stack
 
