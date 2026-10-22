@@ -79,6 +79,34 @@ For local LibreSync package validation, build and pack the sibling `libresync`
 workspace first, then install its generated tarballs. LibreLift never relies on
 global `npm link` state.
 
+## LibreSuite build
+
+The default `npm run build` still outputs `dist/` for `https://librelift.app/`.
+The existing GitHub Pages deployment and native builds continue using that root build.
+
+To prepare the app for `https://libresuite.app/lift/`:
+
+```bash
+npm run build:suite
+npm run preview:suite
+```
+
+Open the preview URL at `/lift/`. The suite build is written separately to
+`dist-suite/lift/`, with asset URLs, the install manifest, and the service worker
+scoped to `/lift/`. It omits the old domain's `CNAME` file. Both builds can coexist.
+
+For a future combined deployment, copy this `dist-suite/lift/` directory into
+`lift/` at the shared site's document root, alongside the other app's directory.
+Serve `/lift` with a redirect to `/lift/` so relative assets resolve correctly.
+Internal screens keep their existing hash routes. Each app must retain its own
+service worker scope; avoid a site-wide service worker that takes over both apps.
+The apps keep separate database names, but paths share the same browser origin
+and are not storage or security boundaries.
+
+This only prepares build artifacts; it does not change DNS, deploy LibreSuite,
+or redirect the current domain. Browser data and installed PWAs remain tied to
+the old domain until you restore a backup and install from the new address.
+
 ## Tech Stack
 
 | Layer | Choice |

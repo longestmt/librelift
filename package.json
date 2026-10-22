@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:suite": "vite build --mode suite",
+    "preview:suite": "vite preview --mode suite",
     "preview": "vite preview",
     "test": "node --test"
   },

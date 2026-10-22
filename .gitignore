@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-suite/
 .DS_Store
 *.local
 Librelift_AI_Strategy_Assessment.md
